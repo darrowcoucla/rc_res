@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * Implements hook_init().
+ */
+function devel_example_init() {
+  global $user;
+  //print_r($user);
+  kpr($user);
+}

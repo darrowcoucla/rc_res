@@ -1,0 +1,55 @@
+<?php
+
+/**
+ * Implements hook_permission().
+ * Example to implement a hook correctly
+ */
+function demo_permission() {
+  return array(
+    'administer demo module' => array(
+      'title' => t('Administer demo module'),
+      'description' => t('Perform admin tasks'),
+    ),
+  );
+}
+
+
+/**
+ * Implements hook_node_view().
+ * Example to add a field
+ */
+function demo_node_view($node, $view_mode, $langcode) {
+//  $node->content['demo_field'] = array(
+//    '#type' => 'markup',
+//    '#markup' => '<p>'.t('This is only a demo.').'</p>',
+//    '#weight' => -10,
+//  );
+
+//  $node->content['demo_list'] = array(
+//    '#items' => array('green', 'blue', 'yellow', 'red'),
+//    '#theme' => 'item_list',
+//    '#weight' => -9,
+//  );
+
+
+$url = "http://webservices.library.ucla.edu/libservices/reserves/xml/srs_number/0";
+
+$options = array(
+    "headers" => array(
+        "Pragma" => "no-cache",
+        "Cache-Control" => "no-cache",
+    ),
+);
+
+$response = drupal_http_request($url, $options);
+
+
+//  $node->content['RestReturn'] = array(
+//    '#type' => 'markup',
+//    '#markup' => $response->data,
+//    '#weight' => -8,
+//  );
+
+//  krumo($node);
+
+}

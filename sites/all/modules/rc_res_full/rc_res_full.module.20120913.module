@@ -1,0 +1,1612 @@
+<?php
+/**
+ * @file
+ * This is an example outlining how a module can make use of the new DBTNG
+ * database API in Drupal 7.
+ *
+ * @todo Demonstrate transaction usage.
+ *
+ * General documentation is available at
+ * @link database Database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 @endlink.
+ */
+
+/**
+ * @defgroup rc_res Example: Database (DBTNG)
+ * @ingroup examples
+ * @{
+ * Database examples, including DBTNG.
+ *
+ * 'DBTNG' means 'Database: The Next Generation.' Yes, Drupallers are nerds.
+ *
+ * General documentation is available at
+ * @link database.inc database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 Database API @endlink.
+ *
+ * The several examples here demonstrate basic database usage.
+ *
+ * In Drupal 6, the recommended method to save or update an entry in the
+ * database was drupal_write_record() or db_query().
+ *
+ * In Drupal 7 and forward, the usage of db_query()
+ * for INSERT, UPDATE, or DELETE is deprecated, because it is
+ * database-dependent. Instead specific functions are provided to perform these
+ * operations: db_insert(), db_update(), and db_delete() do the job now.
+ * (Note that drupal_write_record() is also deprecated.)
+ *
+ * db_insert() example:
+ * @code
+ *   // INSERT INTO {rc_res_full} (name, surname) VALUES('John, 'Doe')
+ *   db_insert('rc_res_full')
+ *     ->fields(array('name' => 'John', 'surname' => 'Doe'))
+ *     ->execute();
+ * @endcode
+ *
+ * db_update() example:
+ * @code
+ *   // UPDATE {rc_res_full} SET name = 'Jane' WHERE name = 'John'
+ *   db_update('rc_res_full')
+ *     ->fields(array('name' => 'Jane'))
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * db_delete() example:
+ * @code
+ *   // DELETE FROM {rc_res_full} WHERE name = 'Jane'
+ *   db_delete('rc_res_full')
+ *     ->condition('name', 'Jane')
+ *     ->execute();
+ * @endcode
+ *
+ * See @link database Database Abstraction Layer @endlink
+ * @see db_insert()
+ * @see db_update()
+ * @see db_delete()
+ * @see drupal_write_record()
+*/
+
+/**
+ * Save an entry in the database.
+ *
+ * The underlying DBTNG function is db_insert().
+ *
+ * In Drupal 6, this would have been:
+ * @code
+ *   db_query(
+ *     "INSERT INTO {rc_res_full} (name, surname, age)
+ *       VALUES ('%s', '%s', '%d')",
+ *     $entry['name'],
+ *     $entry['surname'],
+ *     $entry['age']
+ *   );
+ * @endcode
+ *
+ * Exception handling is shown in this example. It could be simplified
+ * without the try/catch blocks, but since an insert will throw an exception
+ * and terminate your application if the exception is not handled, it is best
+ * to employ try/catch.
+ *
+ * @param $entry
+ *   An array containing all the fields of the database record.
+ *
+ * @see db_insert()
+ */
+function rc_res_full_entry_insert($entry) {
+  $return_value = NULL;
+  try {
+    $return_value = db_insert('rc_res_full')
+                    ->fields($entry)
+                    ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $return_value;
+}
+
+/**
+ * Update an entry in the database.
+ *
+ * The former, deprecated techniques used db_query() or drupal_write_record():
+ * @code
+ *  drupal_write_record('rc_res_full', $entry, $entry['pid']);
+ * @endcode
+ *
+ * @code
+ *  db_query(
+ *    "UPDATE {rc_res_full}
+ *     SET name = '%s', surname = '%s', age = '%d'
+ *     WHERE pid = %d",
+ *     $entry['pid']
+ *  );
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields of the item to be updated.
+ *
+ * @see db_update()
+ */
+function rc_res_full_entry_update($entry) {
+  try {
+    // db_update()...->execute() returns the number of rows updated.
+    $count = db_update('rc_res_full')
+              ->fields($entry)
+              ->condition('pid', $entry['pid'])
+              ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_update failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $count;
+}
+
+/**
+ * Delete an entry from the database.
+ *
+ * The usage of db_query is deprecated except for static queries.
+ * Formerly, a deletion might have been accomplished like this:
+ * @code
+ *  db_query("DELETE FROM {rc_res_full} WHERE pid = %d", $entry['pid]);
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing at least the person identifier 'pid' element of the
+ *   entry to delete.
+ *
+ * @see db_delete()
+ */
+function rc_res_full_entry_delete($table,$entry) {
+  db_delete($table)
+    ->condition('pid', $entry['pid'])
+    ->execute();
+
+}
+
+/**
+ * Read from the database using a filter array.
+ *
+ * In Drupal 6, the standard function to perform reads was db_query(), and
+ * for static queries, it still is.
+ *
+ * db_query() used an SQL query with placeholders and arguments as parameters.
+ *
+ * @code
+ *  // Old way
+ *  $query = "SELECT * FROM {rc_res_full} n WHERE n.uid = %d AND name = '%s'";
+ *  $result = db_query($query, $uid, $name);
+ * @endcode
+ *
+ * Drupal 7 DBTNG provides an abstracted interface that will work with a wide
+ * variety of database engines.
+ *
+ * db_query() is deprecated except when doing a static query. The following is
+ * perfectly acceptable in Drupal 7. See
+ * @link http://drupal.org/node/310072 the handbook page on static queries @endlink
+ *
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE uid = 0 AND name = 'John'
+ *   db_query(
+ *     "SELECT * FROM {rc_res_full} WHERE uid = :uid and name = :name",
+ *     array(':uid' => 0, ':name' => 'John')
+ *   )->execute();
+ * @endcode
+ *
+ * But for more dynamic queries, Drupal provides the db_select()
+ * API method, so there are several ways to perform the same SQL query.
+ * See the @link http://drupal.org/node/310075 handbook page on dynamic queries. @endlink
+ *
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE uid = 0 AND name = 'John'
+ *   db_select('rc_res_full')
+ *     ->fields('rc_res_full')
+ *     ->condition('uid', 0)
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * Here is db_select with named placeholders:
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE uid = 0 AND name = 'John'
+ *   $arguments = array(':name' => 'John', ':uid' => 0);
+ *   db_select('rc_res_full')
+ *     ->fields('rc_res_full')
+ *     ->where('uid = :uid AND name = :name', $arguments)
+ *     ->execute();
+ * @endcode
+ *
+ * Conditions are stacked and evaluated as AND and OR depending on the type of
+ * query. For more information, read the conditional queries handbook page at:
+ * http://drupal.org/node/310086
+ *
+ * The condition argument is an 'equal' evaluation by default, but this can be
+ * altered:
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE age > 18
+ *   db_select('rc_res_full')
+ *     ->fields('rc_res_full')
+ *     ->condition('age', 18, '>')
+ *     ->execute();
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields used to search the entries in the table.
+ * @return
+ *   An object containing the loaded entries if found.
+ *
+ * @see db_select()
+ * @see db_query()
+ * @see http://drupal.org/node/310072
+ * @see http://drupal.org/node/310075
+ *
+ */
+function rc_res_full_entry_load($entry = array()) {
+  // Read all fields from the rc_res_full table.
+  $select = db_select('rc_res_full', 'example');
+  $select->fields('example');
+
+  // Add each field and value as a condition to this query.
+  foreach ($entry as $field => $value) {
+    $select->condition($field, $value);
+  }
+  // Return the result in object format.
+  return $select->execute()->fetchAll();
+}
+
+/**
+ * Implements hook_menu().
+ *
+ * Set up calls to drupal_get_form() for all our example cases.
+ */
+function rc_res_full_menu() {
+  $items = array();
+  global $rc_res_full_get_user_category;
+  $items['examples/rc_res_full'] = array(
+    'title' => 'RC-Res Reservations',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('rc_res_full_form_page_one'),
+    'access callback' => TRUE,
+  );
+  $items['examples/rc_res_full/list'] = array(
+    'title' => 'Sign in',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['examples/rc_res_full/list_users'] = array(
+    'title' => 'List Users',
+    'page callback' => 'rc_res_full_list',
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -9,
+  );
+
+  return $items;
+}
+
+/**
+ * Render a list of entries in the database.
+ */
+function rc_res_full_list() {
+  $output = '';
+
+  // Get all entries in the rc_res_full table.
+  if ($entries = rc_res_full_entry_load()) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', (array) $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Id'), t('Uid'), t('User Name'), t('User Pwd'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  else {
+    drupal_set_message(t('No entries have been added yet.'));
+  }
+  return $output;
+}
+
+/**
+ * Create a form to add an entry, ......................................................................................................................
+ * Create a form to add an entry, ......................................................................................................................
+ * Create a form to add an entry, ......................................................................................................................
+ */
+
+/**
+ * page 1 ......................................................................................................................
+ * page 1 ......................................................................................................................
+ * page 1 ......................................................................................................................
+ */
+function rc_res_full_form_page_one($form, &$form_state) {
+  // Jump to appropriate pafe if necessary
+  // Jump to appropriate pafe if necessary
+  // Jump to appropriate pafe if necessary
+  // Display page 2 if $form_state['page_num'] == 2
+  if (!empty($form_state['page_num']) && $form_state['page_num'] == 2) {
+    return rc_res_full_form_page_two($form, $form_state);
+  }
+  elseif (!empty($form_state['page_num']) && $form_state['page_num'] == 3) {
+    return rc_res_full_form_page_three($form, $form_state);
+  }
+  elseif (!empty($form_state['page_num']) && $form_state['page_num'] == 4) {
+    return rc_res_full_form_page_four($form, $form_state);
+  }
+  elseif (!empty($form_state['page_num']) && $form_state['page_num'] == 5) {
+    return rc_res_full_form_page_five($form, $form_state);
+  }
+  elseif (!empty($form_state['page_num']) && $form_state['page_num'] == 6) {
+    return rc_res_full_form_page_six($form, $form_state);
+  }
+  elseif (!empty($form_state['page_num']) && $form_state['page_num'] == 7) {
+    return rc_res_full_form_page_seven($form, $form_state);
+  }
+
+  // Otherwise we build page 1.
+  // Otherwise we build page 1.
+  // Otherwise we build page 1.
+
+//global $user;
+//print_r($user->uid);
+
+  // build form for page
+//  $form_state['page_num'] = 1;
+  $form = array();
+  $form['description'] = array(
+    '#type'  => 'item',
+    '#title' => t('Sign in using Shibboleth'),
+  );
+  $form['user_name'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('User Name'),
+    '#size'  => 15,
+  );
+  $form['user_pwd'] = array(
+    '#type'  => 'password',
+    '#title' => t('User Pwd'),
+    '#size'  => 15,
+  );
+
+  if (!empty($form_state['page_num']) && $form_state['page_num'] == 1.5) {
+    drupal_set_message(t('Username does not exist in Shibboleth. Please enter your UID (University ID) and try again: 004065587 503863314 800291038 101832840 203834851 203806377'));
+    $create_new_rc_res_user_flag = 1;
+    $form['user_uid'] = array(
+      '#type'  => 'textfield',
+      '#title' => t('User UID'),
+      '#size'  => 15,
+    );
+  }
+
+  else if (!empty($form_state['page_num']) && $form_state['page_num'] == 1.6) {
+    drupal_set_message(t('Username or Password not fouind. Please try again.'));
+  }
+
+  $form['next'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Sign in'),
+    '#submit' => array('rc_res_full_form_page_one_handler_submit'),
+  );
+
+  return $form;
+}
+
+/**
+ * page 2 ......................................................................................................................
+ * page 2 ......................................................................................................................
+ * page 2 ......................................................................................................................
+ */
+function rc_res_full_form_page_two($form, &$form_state) {
+  // Build page 2.
+  // Build page 2.
+  // Build page 2.
+
+drupal_set_message(t("User category: " . variable_get('rc_res_full_get_user_category') ));
+drupal_set_message(t("User ID: " . variable_get('working_uid') ));
+
+  $form = array();
+
+  $form['reservation_type'] = array(
+    '#type' => 'radios',
+    '#options' => array(
+      'studyroom_or_pod'   => t('Reserve a Group Study Room or Collaboration Pod.'),
+      'classroom_or_alcove_or_multi' => t('Reserve a Classroom or Alcove, or reserve multiple spaces at the same time.'),
+    ),
+    '#title' => t('Start your Reservation'),
+  );
+
+  $form['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Next'),
+    '#submit' => array('rc_res_full_form_page_two_handler_submit'),
+  );
+  return $form;
+}
+
+/**
+ * page 3 ......................................................................................................................
+ * page 3 ......................................................................................................................
+ * page 3 ......................................................................................................................
+ */
+function rc_res_full_form_page_three($form, &$form_state) {
+  // Build page 3.
+  // Build page 3.
+  // Build page 3.
+
+  $working_uid = variable_get('working_uid');
+drupal_set_message(t("User ID: " . variable_get('working_uid') ));
+
+  global $user;
+
+  // delete an existing reservation from Resource Scheduler
+  if (!empty($form_state['page_values'][3]['op']) && $form_state['page_values'][3]['op'] == 'Delete') {
+
+    foreach ($form_state['values'][0] as $pid_del) {
+      if( $pid_del != 0 ){
+
+  $working_rid = $pid_del;
+  $url_stack = "http://lit321v-b.library.ucla.edu/rcres/reservation/release/" . "$working_rid";
+  $url = $url_stack;
+
+  $response = drupal_http_request($url, array(
+    'method' => 'DELETE',
+    'headers' => array('Pragma" => "no-cache', 'Cache-Control' => 'no-cache'),
+  )
+  );
+
+krumo($response);
+
+//  $reservation_status = $response_del->data;
+
+	}
+      }
+    }
+
+//  // delete an existing reservation (currently simulated in drupal)
+//  if (!empty($form_state['page_values'][3]['op']) && $form_state['page_values'][3]['op'] == 'Delete') {
+//    $lcnt = 0;
+//    foreach ($form_state['values'][0] as $pid_del) {
+//	$lcnt += 1;
+//      if( $pid_del != 0 ){
+//	$entry = array(
+//	  'pid' => $pid_del,
+//	);
+//	$del_return = rc_res_full_entry_delete('rc_res_test',$entry);
+//	}
+//      }
+//    }
+
+
+  // read reervations given an UID (currently simulated in drupal)
+  $rows = array();
+
+  $rows = rc_res_full_get_user_reservations($working_uid);
+
+
+//  rc_res_full_set_user_reservations($working_uid);
+  //rc_res_full_get_open_resources();
+
+
+  $header = array
+  (
+    'schedID' => t('schedID'),
+    'uid' => t('UID'),
+    'roomName' => t('Room Name'),
+    'startDate' => t('Start Date'),
+    'endDate' => t('End Date'),
+  );
+
+  // Initialize an empty array
+  $options_form = array();
+  // Next, loop through the $users array
+  $lcnt = 0;
+
+  if (!empty($rows)) {
+  foreach($rows['reservation'] as $row)
+  {
+
+    $lcnt += 1;
+    $options_form[$row['schedID']] = array // each element of the array is keyed with the PID
+    (
+      'schedID' => $row['schedID'], // 'start_date' was the key used in the header
+      'uid' => variable_get('rc_res_full_get_user_category'), // 'start_date' was the key used in the header
+      'roomName' => $row['roomName'], // 'start_date' was the key used in the header
+      'startDate' => $row['startDate'], // 'start_time' was the key used in the header
+      'endDate' => $row['endDate'], // 'start_date' was the key used in the header
+    );
+  }
+  }
+
+  $demos0 = array();
+  $demos0 = array(
+    $form['description'] = array
+    (
+      '#type'  => 'item',
+      '#title' => t('Existing Reservations:'),
+    ),
+
+    $form['table'] = array
+    (
+      '#id' => 'formformform',
+      '#type' => 'tableselect',
+      '#header' => $header,
+      '#options' => $options_form,
+      '#empty' => t('No reservations found'),
+    ),
+
+    $form['submit'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Delete'),
+      '#submit' => array('rc_res_full_form_page_three_handler_submit'),
+    ),
+  );
+
+  $demos1 = array();
+  if( $lcnt >= 3 ){
+  $demos1 = array(
+    // future: if too many existing reservations, gray this out
+    $form['description'] = array
+    (
+      '#type'  => 'item',
+      '#title' => t('Reservations maxed out - please try again after the oldest reservation has passed (or delete one or more reservations right now) before making a new reservation.'),
+    ),
+  );
+  }
+
+
+  $demos2 = array();
+  if( $lcnt >= 3 ){
+  $demos2 = array(
+    $form['submit'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Create a new reservation'),
+      '#submit' => array('rc_res_full_form_page_three_handler_submit'),
+      '#disabled' => TRUE,
+    ),
+  );
+  }
+  else{
+  $demos2 = array(
+    $form['description'] = array
+    (
+      '#type'  => 'item',
+      '#title' => t('Please click on the button to create a new reservation'),
+    ),
+
+    $form['submit'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Create a new reservation'),
+      '#submit' => array('rc_res_full_form_page_three_handler_submit'),
+      '#disabled' => FALSE,
+    ),
+  );
+}
+
+//krumo($form);
+
+$demos = array();
+$demos = $demos0;
+$demos[] = $demos1;
+$demos[] = $demos2;
+
+  // The rest of this function just places the above arrays in a context where
+  // they can be rendered (hopefully attractively and usefully) on the page.
+  $page_array = array();
+  foreach ($demos as $key => $item) {
+    $page_array[$key]['#description'] = $key;
+    $page_array[$key]['hr'] = array('#markup' => '<hr/>');
+    $page_array[$key]['rendered'] = array($item);
+  }
+  return $page_array;
+}
+
+/**
+ * page 4 ......................................................................................................................
+ * page 4 ......................................................................................................................
+ * page 4 ......................................................................................................................
+ */
+function rc_res_full_form_page_four($form, &$form_state) {
+  // Build page 4.
+  // Build page 4.
+  // Build page 4.
+
+drupal_set_message(t("User category: " . variable_get('rc_res_full_get_user_category') ));
+drupal_set_message(t("User ID: " . variable_get('working_uid') ));
+
+  $form = array();
+
+  $default_date_time = date("Y-m-d H:i:s", $_SERVER['REQUEST_TIME']);
+  $default_date_time = preg_replace( '/\d\d:\d\d:\d\d/', '08:00:00', $default_date_time );
+
+  $form['date'] = array(
+    '#title' => t('Set Reservation Start Date and Time'),
+    '#type' => 'date_popup', // Provided by the date_popup module
+    '#default_value' => $default_date_time,
+    '#date_format' => 'Y-m-d h:i A', // Uses the PHP date() format - http://php.net/manual/en/function.date.php
+    '#date_year_range' => '0:+2', // Limits the year range to the next two upcoming years
+    '#date_increment' => 30,
+    '#required' => TRUE,
+  );
+
+//  $form['reservation_type'] = array(
+//    '#type' => 'radios',
+//    '#options' => array(
+//      '60'   => t('1 hour.'),
+//      '90'   => t('1-1/2 hours.'),
+//      '120'   => t('2 hours.'),
+//    ),
+//    '#title' => t('Select Reservation Length'),
+//  );
+
+ $form['selected'] = array(
+    '#title' => t('Set Reservation Start Date and Time'),
+    '#type' => 'select',
+    '#options' => array(
+      60 => t('1 hour'),
+      90 => t('1 1/2 hours'),
+      120 => t('2 hours'),
+    ),
+  );
+
+  $form['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Next'),
+    '#submit' => array('rc_res_full_form_page_four_handler_submit'),
+  );
+  return $form;
+}
+
+/**
+ * page 5 ......................................................................................................................
+ * page 5 ......................................................................................................................
+ * page 5 ......................................................................................................................
+ */
+function rc_res_full_form_page_five($form, &$form_state) {
+  // Build page 5.
+  // Build page 5.
+  // Build page 5.
+
+drupal_set_message(t("User category: " . variable_get('rc_res_full_get_user_category') ));
+drupal_set_message(t("User ID: " . variable_get('working_uid') ));
+
+  $form = array();
+
+  // read reervations given an UID (currently simulated in drupal)
+  $rows = array();
+
+  $rows = rc_res_full_get_resources_for_period();
+
+//  rc_res_full_set_user_reservations($working_uid);
+  //rc_res_full_get_open_resources();
+
+
+  $header = array
+  (
+    'start' => t('Start'),
+    'end' => t('End'),
+    'id' => t('Resource Id'),
+    'description' => t('Description'),
+    'capacity' => t('Capacity'),
+    'title' => t('Title'),
+  );
+
+  // Initialize an empty array
+  $options_form = array();
+  // Next, loop through the $users array
+  $lcnt = 0;
+
+  if (!empty($rows)) {
+  foreach($rows as $row)
+  {
+    $lcnt += 1;
+    $o_index = $row['resources'][0]['id'].':::'.$row['start'].':::'.$row['end'].':::'.$row['resources'][0]['capacity'];
+    $options_form[$o_index] = array // each element of the array is keyed with the PID
+    (
+      'start' => $row['start'], // 'start_date' was the key used in the header
+      'end' => $row['end'], // 'start_date' was the key used in the header
+      'id' => $row['resources'][0]['id'], // 'start_date' was the key used in the header
+      'description' => $row['resources'][0]['description'], // 'start_date' was the key used in the header
+      'capacity' => $row['resources'][0]['capacity'], // 'start_time' was the key used in the header
+      'title' => $row['resources'][0]['title'], // 'start_date' was the key used in the header
+    );
+  }
+  }
+
+  $demos0 = array();
+  $demos0 = array(
+    $form['description'] = array
+    (
+      '#type'  => 'item',
+      '#title' => t('Available Resources:'),
+    ),
+
+    $form['table'] = array
+    (
+      '#id' => 'formformform2',
+      '#type' => 'tableselect',
+      '#header' => $header,
+      '#options' => $options_form,
+      '#multiple' => FALSE,
+      '#empty' => t('No available resources found'),
+    ),
+
+    $form['submit'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Reserve selected resource'),
+      '#submit' => array('rc_res_full_form_page_five_handler_submit'),
+    ),
+  );
+
+  return $form;
+}
+
+/**
+ * page 6 ......................................................................................................................
+ * page 6 ......................................................................................................................
+ * page 6 ......................................................................................................................
+ */
+function rc_res_full_form_page_six($form, &$form_state) {
+
+drupal_set_message(t("User category: " . variable_get('rc_res_full_get_user_category') ));
+drupal_set_message(t("User ID: " . variable_get('working_uid') ));
+
+  $form = array();
+
+  $form['description'] = array(
+    '#type'  => 'item',
+    '#title' => t('Reservation Details'),
+  );
+
+  $form['user_email'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Email'),
+    '#size'  => 15,
+  );
+
+ $form['selected'] = array(
+    '#title' => t('Number of participants'),
+    '#type' => 'select',
+    '#options' => array(
+      2 => t('2'),
+      3 => t('3'),
+      4 => t('4'),
+      5 => t('5'),
+      6 => t('6'),
+      7 => t('7'),
+      8 => t('8'),
+    ),
+  );
+
+  $form['user_dept'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Department / Major'),
+    '#size'  => 40,
+  );
+
+  $form['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('confirm'),
+    '#submit' => array('rc_res_full_form_page_six_handler_submit'),
+  );
+  return $form;
+}
+
+/**
+ * page 7 ......................................................................................................................
+ * page 7 ......................................................................................................................
+ * page 7 ......................................................................................................................
+ */
+function rc_res_full_form_page_seven($form, &$form_state) {
+
+drupal_set_message(t("User category: " . variable_get('rc_res_full_get_user_category') ));
+drupal_set_message(t("User ID: " . variable_get('working_uid') ));
+
+  $str_create = array(
+    'description' => 'testing ',
+    'start' => '2012-12-25 02:00 PM',
+    'end' => '2012-12-25 02:30 PM',
+    'pending' => true,
+    'numberOfAttendees' => 3,
+    'email' => 'darrowco@library.ucla.edu',
+    'phone' => '310-206-5565',
+    'firstName' => 'Darrow',
+    'lastName' => 'Cole',
+    'academicDept' => 'Other',
+    'academicDeptOther' => 'Education',
+    'division' => 'Staff',
+    'courseLevel' => 'Meeting',
+    'srs' => '111222333',
+    'computerUse' => 'No',
+    'internalNotes' => 'Testing web service, I will delete',
+    'uid' => '502673598',
+  );
+
+krumo($str_create);
+
+}
+
+/**
+ * Page 1 submit handler.
+ *
+ * Save the vals from page one for a later final submit.
+ */
+function rc_res_full_form_page_one_handler_submit($form, &$form_state) {
+
+  // set page num if it does not yet exist, ie this is the first pass
+  if (empty($form_state['page_num'])) { $form_state['page_num'] = 1; } 
+
+  // try to get UID from Shibboleth
+  $uid_from_shib = get_uid_from_shib($form['user_name']['#value'],$form['user_pwd']['#value']);
+
+  // if UID from Shibolleth is not valid
+  if ( $uid_from_shib < 0 ){
+    // if set-create-flag is not set
+    if (!empty($form_state['page_num']) && $form_state['page_num'] != 1.5) {
+      // if user is not on rc-res user list
+      $is_user_in_rc_res = is_user_in_rc_res($form['user_name']['#value']);
+      if ( $is_user_in_rc_res < 0 ) {
+	// set set-create-flag
+	$form_state['page_num'] = 1.5;
+      }
+      else {
+	// else if pwd is not correct
+	$is_pwd_ok = is_pwd_ok($form['user_pwd']['#value']);
+	if ( $is_pwd_ok < 0 ) {
+	  $form_state['page_num'] = 1.6;
+	}
+	// if pwd is ok
+	else {
+	  // else go to page 2
+	  $working_uid = $is_pwd_ok;
+	  variable_set('working_uid', $working_uid);
+	  // get user category here
+	    $rc_res_full_get_user_category = rc_res_full_get_user_category($working_uid);
+	    variable_set('rc_res_full_get_user_category', $rc_res_full_get_user_category);
+	  $form_state['page_num'] = 2;
+	}
+      }
+    }
+    else {
+      // create new rc-res user and go to page 2
+      $rc_res_full_add_user = rc_res_full_add_user($form, $form_state);
+      $working_uid = $form_state['values']['user_uid'];
+      variable_set('working_uid', $working_uid);
+      // get user category here
+	$rc_res_full_get_user_category = rc_res_full_get_user_category($working_uid);
+	variable_set('rc_res_full_get_user_category', $rc_res_full_get_user_category);
+krumo($rc_res_full_get_user_category);
+      $form_state['page_num'] = 2;
+    }
+  }
+  else {
+    // else go to page 2
+    $working_uid = $uid_from_shib;
+    variable_set('working_uid', $working_uid);
+    // get user category here
+      $rc_res_full_get_user_category = rc_res_full_get_user_category($working_uid);
+      variable_set('rc_res_full_get_user_category', $rc_res_full_get_user_category);
+    $form_state['page_num'] = 2;
+  }
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Page 2 submit handler.
+ *
+ * Save the vals from page two for a later final submit.
+ */
+function rc_res_full_form_page_two_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+  $form_state['page_values'][2] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][3])) {
+    $form_state['values'] = $form_state['page_values'][3];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 3;
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Page 3 submit handler.
+ *
+ * Save the vals from page three for a later final submit.
+ */
+function rc_res_full_form_page_three_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+  $form_state['page_values'][3] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][4])) {
+    $form_state['values'] = $form_state['page_values'][4];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 4;
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Page 4 submit handler.
+ *
+ * Save the vals from page two for a later final submit.
+ */
+function rc_res_full_form_page_four_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+
+//krumo($form_state);
+
+  $form_state['page_values'][4] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][5])) {
+    $form_state['values'] = $form_state['page_values'][5];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 5;
+  $form_state['rebuild'] = TRUE;
+ }
+
+/**
+ * Page 5 submit handler.
+ *
+ * Save the vals from page two for a later final submit.
+ */
+function rc_res_full_form_page_five_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+
+  $form_state['page_values'][5] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][6])) {
+    $form_state['values'] = $form_state['page_values'][6];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 6;
+  $form_state['rebuild'] = TRUE;
+ }
+
+/**
+ * Page 6 submit handler.
+ *
+ * Save the vals from page two for a later final submit.
+ */
+function rc_res_full_form_page_six_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+
+krumo($form_state);
+
+  $form_state['page_values'][6] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][7])) {
+    $form_state['values'] = $form_state['page_values'][7];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 7;
+  $form_state['rebuild'] = TRUE;
+ }
+
+
+
+
+
+
+
+/**
+ * Page X submit handler.
+ *
+ * This is the final submit handler. Gather all the data together and save it to the db.
+ * Also display it in a drupal_set_message() for development.
+ */
+function rc_res_full_form_page_X_handler_submit($form, &$form_state) {
+  // Normally, some code would go here to alter the database with the data
+  // collected from the form. Instead sets a message with drupal_set_message()
+  // to validate that the code worked.
+  $page_one_values = $form_state['page_values'][1];
+  drupal_set_message(t('The form has been submitted. User Name = @user_name, User Password = @user_pwd',
+  array('@user_name' => $page_one_values['user_name'], '@user_pwd' => $page_one_values['user_pwd'])));
+
+  if (!empty($page_one_values['user_name2'])) {
+    drupal_set_message(t('Second name: name="@user_name @user_pwd", year of birth=@year_of_birth',
+    array('@user_name' => $page_one_values['first2'], '@user_pwd' => $page_one_values['last2'], '@year_of_birth' => $page_one_values['year_of_birth2'])));
+  }
+  drupal_set_message(t('Reservation type is @reservation_type', array('@reservation_type' => $form_state['values']['reservation_type'])));
+
+  // If we wanted to redirect on submission, set $form_state['redirect']
+  // $form_state['redirect'] = 'node'; // Redirects the user to /node.
+
+  global $user;
+  // Save the submitted entry.
+  $entry = array(
+    'user_name'    => $page_one_values['user_name'],
+    'user_pwd' => $page_one_values['user_pwd'],
+    'uid'     => $user->uid,
+  );
+  $return = rc_res_full_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Using UID = @entry", array('@entry' => print_r($entry['uid'], TRUE))));
+  }
+  $form_state['redirect'] = '';
+}
+
+
+/**
+ * Submit handler for 'add entry' form.
+ */
+function rc_res_full_form_submit($form, &$form_state) {
+  global $user;
+  // Save the submitted entry.
+  $entry = array(
+    'user_name'    => $form_state['values']['user_name'],
+    'user_pwd' => $form_state['values']['user_pwd'],
+    'uid'     => $user->uid,
+  );
+  $return = rc_res_full_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Using UID = @entry", array('@entry' => print_r($entry['uid'], TRUE))));
+  }
+  $form_state['redirect'] = '';
+}
+
+/**
+ * add a rc-res user
+ */
+function rc_res_full_add_user($form, &$form_state) {
+  global $user;
+  // Save the submitted entry.
+  $entry = array(
+    'user_name'    => $form_state['values']['user_name'],
+    'user_pwd' => $form_state['values']['user_pwd'],
+    'uid'     => $form_state['values']['user_uid'],
+  );
+  $return = rc_res_full_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Using UID = @entry", array('@entry' => print_r($entry['uid'], TRUE))));
+  }
+  $form_state['redirect'] = '';
+  return 1;
+}
+
+/**
+ * Sample UI to update a record.
+ */
+function rc_res_full_form_update($form, &$form_state) {
+  $form = array(
+    '#prefix' => '<div id="updateform">',
+    '#suffix' => '</div>',
+  );
+
+  $entries = rc_res_full_entry_load();
+  $keyed_entries = array();
+  if (empty($entries)) {
+    $form['no_values'] = array(
+      '#value' => t("No entries exist in the table rc_res_full table."),
+    );
+    return $form;
+  }
+
+  foreach ($entries as $entry) {
+    $options[$entry->pid] = t("@pid: @user_name @user_pwd", array('@pid' => $entry->pid, '@user_name' => $entry->user_name, '@user_pwd' => $entry->user_pwd));
+    $keyed_entries[$entry->pid] = $entry;
+  }
+  $default_entry = !empty($form_state['values']['pid']) ? $keyed_entries[$form_state['values']['pid']] : $entries[0];
+
+  $form_state['entries'] = $keyed_entries;
+
+  $form['pid'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#title' => t('Choose entry to update'),
+    '#default_value' => $default_entry->pid,
+    '#ajax' => array(
+      'wrapper' => 'updateform',
+      'callback' => 'rc_res_full_form_update_callback',
+    ),
+  );
+
+  $form['user_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User Name'),
+    '#size' => 15,
+    '#default_value' => $default_entry->user_name,
+  );
+
+  $form['user_pwd'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User Pwd'),
+    '#size' => 15,
+    '#default_value' => $default_entry->cls_pwd,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update'),
+  );
+  return $form;
+}
+
+/**
+ * AJAX callback handler for the pid select.
+ *
+ * When the pid changes, populates the defaults from the database in the form.f
+ */
+function rc_res_full_form_update_callback($form, $form_state) {
+  $entry = $form_state['entries'][$form_state['values']['pid']];
+  // Setting the #value of items is the only way I was able to figure out
+  // to get replaced defaults on these items. #default_value will not do it
+  // and shouldn't.
+  foreach (array('user_name', 'user_name') as $item) {
+    $form[$item]['#value'] = $entry->$item;
+  }
+  return $form;
+}
+
+/**
+ * Submit handler for 'update entry' form.
+ */
+function rc_res_full_form_update_submit($form, &$form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'pid' => $form_state['values']['pid'],
+    'user_name' => $form_state['values']['user_name'],
+    'user_pwd' => $form_state['values']['user_pwd'],
+    'uid' => $user->uid,
+  );
+  $count = rc_res_full_entry_update($entry);
+  drupal_set_message(t("Updated"));
+}
+
+/**
+ * get the UID from shib based on user login values
+ */
+function get_uid_from_shib($user_name, $user_pwd) {
+
+global $user;
+print_r("fffff");
+
+// dhc - get preset, temp UID from table, must set first???
+// test for values at or before this point, validation?
+  $uid_from_shib = 0;
+
+  // read reervations given an UID (currently simulated in drupal)
+  $entries = array();
+  // select table
+  $select = db_select('rc_res_full', 'e');
+  // fields to read
+  $select->addField('e', 'pid');
+  $select->addField('e', 'uid');
+  // read in only records that match te he current users uid
+  $select->condition('e.user_name', $user_name);
+  $select->condition('e.user_pwd', $user_pwd);
+  // Now, loop all these entries and show them in a table. Note that there is no
+  // db_fetch_* object or array function being called here. Also note that the
+  // following line could have been written as
+  // $entries = $select->execute()->fetchAll() which would return each selected
+  // record as an object instead of an array.
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', $entry);
+    }
+  // temp: drupal is taking place of shib
+  $uid_from_shib = $rows[0]['uid'];
+  }
+  else {
+    //drupal_set_message(t('No entries available for uid = ' . $user->uid));
+    $uid_from_shib = -1;
+  }
+  return $uid_from_shib;
+}
+
+/**
+ * get the UID from drupal because shib failed (using on user login values)
+ */
+function get_uid_from_drupal($user_name, $user_pwd) {
+
+global $user;
+print_r("ggggg");
+
+  $uid_from_drupal = 0;
+
+  // read reervations given an UID (currently simulated in drupal)
+  $entries = array();
+  // select table
+  $select = db_select('rc_res_full', 'e');
+  // fields to read
+  $select->addField('e', 'pid');
+  $select->addField('e', 'uid');
+  // read in only records that match te he current users uid
+  $select->condition('e.user_name', $user_name);
+  $select->condition('e.user_pwd', $user_pwd);
+  // Now, loop all these entries and show them in a table. Note that there is no
+  // db_fetch_* object or array function being called here. Also note that the
+  // following line could have been written as
+  // $entries = $select->execute()->fetchAll() which would return each selected
+  // record as an object instead of an array.
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', $entry);
+    }
+  // temp: drupa; is taking place of shib
+  $uid_from_drupal = $rows[0]['uid'];
+  }
+  else {
+    //drupal_set_message(t('No entries available for uid = ' . $user->uid));
+    $uid_from_drupal = -1;
+  }
+  return $uid_from_drupal;
+}
+
+/**
+ * get the UID from drupal because shib failed (using on user login values)
+ */
+function is_user_in_rc_res($user_name) {
+
+global $user;
+print_r("hhhhh");
+
+  $uid_from_drupal = 0;
+
+  // read reervations given an UID (currently simulated in drupal)
+  $entries = array();
+  // select table
+  $select = db_select('rc_res_full', 'e');
+  // fields to read
+  $select->addField('e', 'pid');
+  $select->addField('e', 'uid');
+  // read in only records that match te he current users uid
+  $select->condition('e.user_name', $user_name);
+  // Now, loop all these entries and show them in a table. Note that there is no
+  // db_fetch_* object or array function being called here. Also note that the
+  // following line could have been written as
+  // $entries = $select->execute()->fetchAll() which would return each selected
+  // record as an object instead of an array.
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+    $is_user_in_drupal = 1;
+  }
+  else {
+    $is_user_in_drupal = -1;
+  }
+  return $is_user_in_drupal;
+}
+
+/**
+ * check to find if pwd from form matches the pwd in the rc_res_full table
+ */
+function is_pwd_ok($user_pwd) {
+
+global $user;
+  // compare pwds (temporary)
+  $entries = array();
+  // select table
+  $select = db_select('rc_res_full', 'e');
+  // fields to read
+  $select->addField('e', 'user_pwd');
+  $select->addField('e', 'uid');  
+// read in only records that match te he current users uid
+  $select->condition('e.user_pwd', $user_pwd);
+  // Now, loop all these entries and show them in a table. Note that there is no
+  // db_fetch_* object or array function being called here. Also note that the
+  // following line could have been written as
+  // $entries = $select->execute()->fetchAll() which would return each selected
+  // record as an object instead of an array.
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', $entry);
+    }
+  // temp: drupa; is taking place of shib
+  $uid_from_drupal = $rows[0]['uid'];
+  }
+  else {
+    //drupal_set_message(t('No entries available for uid = ' . $user->uid));
+    $uid_from_drupal = -1;
+  }
+  return $uid_from_drupal;
+}
+
+/**
+ * @} End of "defgroup rc_res_full".
+ */
+
+/**
+ * get user category from Voyager
+ */
+function rc_res_full_get_user_category($working_uid) {
+  // get patron status from Voyager
+  $url_stack = "http://lit321v-b.library.ucla.edu/rcres/patron/group/" . "$working_uid";
+  $url = $url_stack . 
+  drupal_http_build_query(array());
+  $options = array(
+    "headers" => array(
+        "Pragma" => "no-cache",
+        "Cache-Control" => "no-cache",
+    ),
+  );
+  $response_voy = drupal_http_request($url, $options);
+  $patron_status = $response_voy->data;
+//dsm($patron_status);
+  if (preg_match("/\bundergraduate\b/ii", $patron_status)) {
+    $patron_status = "undergraduate";
+  } elseif (preg_match("/\bgraduate\b/ii", $patron_status)) {
+    $patron_status = "graduate";
+  } elseif (preg_match("/\bfaculty\b/ii", $patron_status)) {
+    $patron_status = "faculty";
+  }
+//dsm($patron_status);
+  return $patron_status;
+}
+
+/**
+ * get list of user reservations
+ */
+function rc_res_full_get_user_reservations($working_uid) {
+  // get patron status from Voyager
+  $url_stack = "http://lit321v-b.library.ucla.edu/rcres/currentreservations/for/" . "$working_uid";
+  $url = $url_stack;
+  $test = drupal_http_build_query(array());
+  $options = array(
+    "headers" => array(
+        "Pragma" => "no-cache",
+        "Cache-Control" => "no-cache",
+    ),
+  );
+
+  $response_voy = drupal_http_request($url, $options);
+  $patron_reservations = $response_voy->data;
+
+  $patron_reservations_array = drupal_json_decode($patron_reservations, TRUE);
+
+//dsm($patron_status);
+  return $patron_reservations_array;
+}
+
+/**
+ * get list of available resources @ a start time
+ */
+function rc_res_full_get_open_resources_at_time() {
+  // get patron status from Voyager
+
+//  $time_string = "2012-09-07 08:00 AM/length/2";
+//  $resource_string = urlencode($time_string);
+  $url_stack = "http%3A%2F%2Flit321v-b.library.ucla.edu%2Frcres%2Favailablerooms%2Fstartingat%2F2012-09-10+06%3A00%3A00+PM%2Flength%2F2";
+  $url = $url_stack;
+  $test = drupal_http_build_query(array());
+  $options = array(
+    "headers" => array(
+        "Pragma" => "no-cache",
+        "Cache-Control" => "no-cache",
+    ),
+  );
+
+  $response_voy = drupal_http_request($url, $options);
+
+krumo($url);
+krumo($response_voy);
+
+  $patron_reservations = $response_voy->data;
+
+  $patron_reservations_array = drupal_json_decode($patron_reservations, TRUE);
+
+//dsm($patron_status);
+  return $patron_reservations_array;
+}
+
+/**
+ * get list of available resources after starting time given start date/time and period
+ */
+function rc_res_full_get_resources_for_period() {
+
+// Set some parameters for sending request.
+
+// test and setup string
+$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/2012-09-11+07%3a00+PM/until/48/length/3';
+$request_headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+$request_method = 'POST';
+$data = '';
+$request_retry = 3;
+// Send the request.
+$response_voy = drupal_http_request($request_url, $request_headers, $request_method, $data, $request_retry);
+
+krumo($response_voy);
+
+  $patron_reservations = $response_voy->data;
+  $patron_reservations_array = drupal_json_decode($patron_reservations, TRUE);
+
+//dsm($patron_status);
+  return $patron_reservations_array;
+}
+
+/**
+ * get list of available resources after starting time, half hour increments on same day dhc works
+ */
+function rc_res_full_get_open_resources() {
+  // get patron status from Voyager
+
+
+// Set some parameters for sending request.
+$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/startingat/2012-09-11+11%3a00+AM/length/2';
+$request_headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+$request_method = 'POST';
+$data = '';
+$request_retry = 3;
+// Send the request.
+$response_voy = drupal_http_request($request_url, $request_headers, $request_method, $data, $request_retry);
+
+krumo($response_voy);
+
+  $patron_reservations = $response_voy->data;
+  $patron_reservations_array = drupal_json_decode($patron_reservations, TRUE);
+
+//dsm($patron_status);
+  return $patron_reservations_array;
+}
+
+/**
+ * set new user reservations
+ */
+function rc_res_full_set_user_reservations($working_uid) {
+
+  $params = array();
+
+  $c_array = array(
+    'description' => 'testing ',
+    'start' => '2012-12-25 02:00 PM',
+    'end' => '2012-12-25 02:30 PM',
+    'pending' => true,
+    'numberOfAttendees' => 3,
+    'email' => 'darrowco@library.ucla.edu',
+    'phone' => '310-206-5565',
+    'firstName' => 'Darrow',
+    'lastName' => 'Cole',
+    'academicDept' => 'Other',
+    'academicDeptOther' => 'Education',
+    'division' => 'Staff',
+    'courseLevel' => 'Meeting',
+    'srs' => '111222333',
+    'computerUse' => 'No',
+    'internalNotes' => 'Testing web service, I will delete',
+    'uid' => '502673598',
+  );
+
+  $params = json_encode($c_array);
+
+  // right way to post data - Drupal 7
+  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/117', array(
+    'method' => 'POST',
+    'data' => $params, // see comments below - you may need to change this
+    'headers' => array('Content-Type' => 'application/json')
+  ));
+
+
+//  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/1', $headers = array('Content-Type' => 'application/json'), $method = 'POST', $data = $params, $retry = 3);
+
+krumo($response);
+
+}
+
+/**
+ * set new user reservations
+ */
+function rc_res_full_set_user_reservations_0($working_uid) {
+
+  $c_array = array(
+    'description' => 'testing ',
+    'start' => '2012-09-05 07:00 PM',
+    'end' => '2012-09-05 07:30 PM',
+    'pending' => true,
+    'numberOfAttendees' => 3,
+    'email' => 'darowco@library.ucla.edu',
+    'phone' => '310-206-5565',
+    'firstName' => 'Darrow',
+    'lastName' => 'Cole',
+    'academicDept' => 'Other',
+    'academicDeptOther' => 'Education',
+    'division' => 'Staff',
+    'courseLevel' => 'Meeting',
+    'srs' => '111222333',
+    'computerUse' => 'No',
+    'internalNotes' => 'Testing web service, I will delete',
+    'uid' => '502673598',
+  );
+
+  $data = json_encode($c_array);
+
+  $url = 'http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/100';
+  $request_headers = array("content-type" => "application/json");
+
+  $request = drupal_http_request($url, $request_headers, 'POST', $data);
+
+krumo($request);
+
+}
+
+// store here temporarily
+//  get go / no go from RS (resource scheduler
+
+
+
+function send_data_form_submit($form, &$form_state) {
+
+    $name = $form_state['values']['name'];
+    $email = $form_state['values']['email'];
+
+    $attendee = array(
+        'name' => urlencode($name),
+        'email' => urlencode($email)
+    );
+
+    $attendee = http_build_query($attendee, '', '&');
+
+    $url_login = 'http://[ip]/eventmobile/users/sign_in';
+    $url_target = 'http://[ip]/eventmobile/attendee_management/attendee';
+
+    $use  = array(
+      'email' => 'root@root.com',
+      'password' => '123456'
+    );
+    $user = http_build_query($use, '', '&');
+
+    $headers = array('Content-Type' => 'application/x-www-form-urlencoded');
+
+    $method = 'POST';
+
+    $result_1 = drupal_http_request(url($url_login, array(absolute => true)), $headers, $method, $user); //I get a http_code = 200. OK
+    $result_2 = drupal_http_request(url($url_target,array(absolute => true)), $headers, $method, $attendee); // I get a http_code = 500. Internal Server Error
+}
+
+
+// dhc
+
+//  $url = "http://lit321v-b.library.ucla.edu/rcres/count/503863314/77" . 
+//  drupal_http_build_query(array());
+//  $options = array(
+//    "headers" => array(
+//        "Pragma" => "no-cache",
+//        "Cache-Control" => "no-cache",
+//    ),
+//  );
+//  $response = drupal_http_request($url, $options);
+//
+// with RC reservations
+//
+// 004065587           UCLA Undergraduate     2 reservations
+//
+// 503863314           UCLA Graduate                 2 reservations
+//
+// 800291038           UCLA Staff                          1 reservation
+//
+// without RC reservations
+//
+// 101832840           UCLA Staff
+//
+// 203834851           UCLA Undergraduate
+//
+// 203806377           UCLA Graduate
+
+

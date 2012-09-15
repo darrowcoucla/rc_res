@@ -1,0 +1,108 @@
+<?php
+
+/**
+ * @file
+ * Demonstrates render arrays.
+ */
+
+/**
+ * @defgroup render_example Example: Render
+ * @ingroup examples
+ * @{
+ * Demonstrate how render arrays are arranged and how they can be altered.
+ * This alters blocks and the page to show the actual render array
+ * that is being used to create each item.
+ *
+ * @see drupal_render()
+ */
+
+// This allows drupal_var_export() to work.
+require_once('includes/utility.inc');
+
+/**
+ * Implements hook_menu().
+ */
+function render_example_menu() {
+  $items['examples/render_example/arrays'] = array(
+    'title' => 'Render array examples',
+    'page callback' => 'render_example_arrays',
+    'access callback' => TRUE,
+  );
+
+  return $items;
+}
+
+/**
+ * Provides a number of render arrays and show what they do.
+ *
+ * Each array is keyed by a description; it's returned for rendering at page
+ * render time. It's easy to add new examples to this.
+ *
+ * The array items in $demos are intended to be raw, normal render arrays
+ * that can be experimented with to end up with different outcomes.
+ */
+function render_example_arrays() {
+  $output = '';
+  // Get all entries in the dbtng_example table.
+  if ($entries = dbtng_example_entry_load()) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', (array) $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Id'), t('uid'), t('Name'), t('Surname'), t('Age'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  $demos = array(
+    // Demonstrate the simplest markup, a #markup element.
+    t('Super simple #markup')  => array(
+      '#markup' => $output,
+    ),
+  );
+  // The rest of this function just places the above arrays in a context where
+  // they can be rendered (hopefully attractively and usefully) on the page.
+  $page_array = array();
+  foreach ($demos as $key => $item) {
+    $page_array[$key]['#theme_wrappers'] = array('render_array');
+    $page_array[$key]['#description'] = $key;
+    $page_array[$key]['hr'] = array('#markup' => '<hr/>');
+    $page_array[$key]['rendered'] = array($item);
+  }
+  return $page_array;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function render_example_theme() {
+  $items = array(
+    'render_example_add_div' => array(
+      'render element' => 'element',
+    ),
+    'render_example_add_notes' => array(
+      'render element' => 'element',
+    ),
+    'render_array' => array(
+      'render element' => 'element',
+    ),
+    'render_example_aggregate' => array(
+      'render element' => 'element',
+    ),
+  );
+  return $items;
+}
+
+/**
+ * Themes the render array (from the demonstration page).
+ */
+function theme_render_array($variables) {
+  $heading = '<div class="render-header">' . $variables['element']['#description'] . '</div>';
+
+  $rendered = '<div class="render-array">' . $heading . $variables['element']['#children'] . '</div>';
+  return $rendered;
+}
+
+/**
+ * @} End of "defgroup render_example".
+ */

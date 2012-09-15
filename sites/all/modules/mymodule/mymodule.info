@@ -1,0 +1,5 @@
+name = My Module
+description = Does awesome things. Makes tea. Washes up. Favours of a personal nature.
+core = 7.x
+files[] = mymodule.module
+ 

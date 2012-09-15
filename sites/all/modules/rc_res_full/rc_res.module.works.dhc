@@ -1,0 +1,573 @@
+<?php
+/**
+ * @file
+ * This is an example outlining how a module can make use of the new DBTNG
+ * database API in Drupal 7.
+ *
+ * @todo Demonstrate transaction usage.
+ *
+ * General documentation is available at
+ * @link database Database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 @endlink.
+ */
+
+/**
+ * @defgroup rc_res Example: Database (DBTNG)
+ * @ingroup examples
+ * @{
+ * Database examples, including DBTNG.
+ *
+ * 'DBTNG' means 'Database: The Next Generation.' Yes, Drupallers are nerds.
+ *
+ * General documentation is available at
+ * @link database.inc database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 Database API @endlink.
+ *
+ * The several examples here demonstrate basic database usage.
+ *
+ * In Drupal 6, the recommended method to save or update an entry in the
+ * database was drupal_write_record() or db_query().
+ *
+ * In Drupal 7 and forward, the usage of db_query()
+ * for INSERT, UPDATE, or DELETE is deprecated, because it is
+ * database-dependent. Instead specific functions are provided to perform these
+ * operations: db_insert(), db_update(), and db_delete() do the job now.
+ * (Note that drupal_write_record() is also deprecated.)
+ *
+ * db_insert() example:
+ * @code
+ *   // INSERT INTO {rc_res} (name, surname) VALUES('John, 'Doe')
+ *   db_insert('rc_res')
+ *     ->fields(array('name' => 'John', 'surname' => 'Doe'))
+ *     ->execute();
+ * @endcode
+ *
+ * db_update() example:
+ * @code
+ *   // UPDATE {rc_res} SET name = 'Jane' WHERE name = 'John'
+ *   db_update('rc_res')
+ *     ->fields(array('name' => 'Jane'))
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * db_delete() example:
+ * @code
+ *   // DELETE FROM {rc_res} WHERE name = 'Jane'
+ *   db_delete('rc_res')
+ *     ->condition('name', 'Jane')
+ *     ->execute();
+ * @endcode
+ *
+ * See @link database Database Abstraction Layer @endlink
+ * @see db_insert()
+ * @see db_update()
+ * @see db_delete()
+ * @see drupal_write_record()
+*/
+
+/**
+ * Save an entry in the database.
+ *
+ * The underlying DBTNG function is db_insert().
+ *
+ * In Drupal 6, this would have been:
+ * @code
+ *   db_query(
+ *     "INSERT INTO {rc_res} (name, surname, age)
+ *       VALUES ('%s', '%s', '%d')",
+ *     $entry['name'],
+ *     $entry['surname'],
+ *     $entry['age']
+ *   );
+ * @endcode
+ *
+ * Exception handling is shown in this example. It could be simplified
+ * without the try/catch blocks, but since an insert will throw an exception
+ * and terminate your application if the exception is not handled, it is best
+ * to employ try/catch.
+ *
+ * @param $entry
+ *   An array containing all the fields of the database record.
+ *
+ * @see db_insert()
+ */
+function rc_res_entry_insert($entry) {
+  $return_value = NULL;
+  try {
+    $return_value = db_insert('rc_res')
+                    ->fields($entry)
+                    ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $return_value;
+}
+
+/**
+ * Update an entry in the database.
+ *
+ * The former, deprecated techniques used db_query() or drupal_write_record():
+ * @code
+ *  drupal_write_record('rc_res', $entry, $entry['pid']);
+ * @endcode
+ *
+ * @code
+ *  db_query(
+ *    "UPDATE {rc_res}
+ *     SET name = '%s', surname = '%s', age = '%d'
+ *     WHERE pid = %d",
+ *     $entry['pid']
+ *  );
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields of the item to be updated.
+ *
+ * @see db_update()
+ */
+function rc_res_entry_update($entry) {
+  try {
+    // db_update()...->execute() returns the number of rows updated.
+    $count = db_update('rc_res')
+              ->fields($entry)
+              ->condition('pid', $entry['pid'])
+              ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_update failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $count;
+}
+
+/**
+ * Delete an entry from the database.
+ *
+ * The usage of db_query is deprecated except for static queries.
+ * Formerly, a deletion might have been accomplished like this:
+ * @code
+ *  db_query("DELETE FROM {rc_res} WHERE pid = %d", $entry['pid]);
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing at least the person identifier 'pid' element of the
+ *   entry to delete.
+ *
+ * @see db_delete()
+ */
+function rc_res_entry_delete($entry) {
+  db_delete('rc_res')
+    ->condition('pid', $entry['pid'])
+    ->execute();
+
+}
+
+
+/**
+ * Read from the database using a filter array.
+ *
+ * In Drupal 6, the standard function to perform reads was db_query(), and
+ * for static queries, it still is.
+ *
+ * db_query() used an SQL query with placeholders and arguments as parameters.
+ *
+ * @code
+ *  // Old way
+ *  $query = "SELECT * FROM {rc_res} n WHERE n.uid = %d AND name = '%s'";
+ *  $result = db_query($query, $uid, $name);
+ * @endcode
+ *
+ * Drupal 7 DBTNG provides an abstracted interface that will work with a wide
+ * variety of database engines.
+ *
+ * db_query() is deprecated except when doing a static query. The following is
+ * perfectly acceptable in Drupal 7. See
+ * @link http://drupal.org/node/310072 the handbook page on static queries @endlink
+ *
+ * @code
+ *   // SELECT * FROM {rc_res} WHERE uid = 0 AND name = 'John'
+ *   db_query(
+ *     "SELECT * FROM {rc_res} WHERE uid = :uid and name = :name",
+ *     array(':uid' => 0, ':name' => 'John')
+ *   )->execute();
+ * @endcode
+ *
+ * But for more dynamic queries, Drupal provides the db_select()
+ * API method, so there are several ways to perform the same SQL query.
+ * See the @link http://drupal.org/node/310075 handbook page on dynamic queries. @endlink
+ *
+ * @code
+ *   // SELECT * FROM {rc_res} WHERE uid = 0 AND name = 'John'
+ *   db_select('rc_res')
+ *     ->fields('rc_res')
+ *     ->condition('uid', 0)
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * Here is db_select with named placeholders:
+ * @code
+ *   // SELECT * FROM {rc_res} WHERE uid = 0 AND name = 'John'
+ *   $arguments = array(':name' => 'John', ':uid' => 0);
+ *   db_select('rc_res')
+ *     ->fields('rc_res')
+ *     ->where('uid = :uid AND name = :name', $arguments)
+ *     ->execute();
+ * @endcode
+ *
+ * Conditions are stacked and evaluated as AND and OR depending on the type of
+ * query. For more information, read the conditional queries handbook page at:
+ * http://drupal.org/node/310086
+ *
+ * The condition argument is an 'equal' evaluation by default, but this can be
+ * altered:
+ * @code
+ *   // SELECT * FROM {rc_res} WHERE age > 18
+ *   db_select('rc_res')
+ *     ->fields('rc_res')
+ *     ->condition('age', 18, '>')
+ *     ->execute();
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields used to search the entries in the table.
+ * @return
+ *   An object containing the loaded entries if found.
+ *
+ * @see db_select()
+ * @see db_query()
+ * @see http://drupal.org/node/310072
+ * @see http://drupal.org/node/310075
+ *
+ */
+function rc_res_entry_load($entry = array()) {
+  // Read all fields from the rc_res table.
+  $select = db_select('rc_res', 'example');
+  $select->fields('example');
+
+  // Add each field and value as a condition to this query.
+  foreach ($entry as $field => $value) {
+    $select->condition($field, $value);
+  }
+  // Return the result in object format.
+  return $select->execute()->fetchAll();
+}
+
+/**
+ * Render a filtered list of entries in the database.
+ *
+ * DBTNG also helps processing queries that return several rows, providing the
+ * found objects in the same query execution call.
+ *
+ * This function queries the database using a JOIN between users table and the
+ * example entries, to provide the username that created the entry, and creates
+ * a table with the results, processing each row.
+ *
+ * SELECT
+ *  e.pid as pid, e.name as name, e.surname as surname, e.age as age
+ *  u.name as username
+ * FROM
+ *  {rc_res} e
+ * JOIN
+ *  users u ON e.uid = u.uid
+ * WHERE
+ *  e.name = 'John' AND e.age > 18
+ *
+ * @see db_select()
+ * @see http://drupal.org/node/310075
+ */
+function rc_res_advanced_list() {
+  $output = '';
+
+  $select = db_select('rc_res', 'e');
+  // Join the users table, so we can get the entry creator's username.
+  $select->join('users', 'u', 'e.uid = u.uid');
+  // Select these specific fields for the output.
+  $select->addField('e', 'pid');
+  $select->addField('u', 'user_group', 'username');
+  $select->addField('e', 'user_group');
+  $select->addField('e', 'cls_lim');
+  $select->addField('e', 'gsr_lim');
+  // Filter only persons named "John".
+  $select->condition('e.user_group', 'John');
+  // Filter only persons older than 18 years.
+  $select->condition('e.gsr_lim', 18, '>');
+  // Make sure we only get items 0-49, for scalability reasons.
+  $select->range(0, 50);
+
+  // Now, loop all these entries and show them in a table. Note that there is no
+  // db_fetch_* object or array function being called here. Also note that the
+  // following line could have been written as
+  // $entries = $select->execute()->fetchAll() which would return each selected
+  // record as an object instead of an array.
+  $entries = $select->execute()->fetchAll(PDO::FETCH_ASSOC);
+  if (!empty($entries)) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Id'), t('Created by'), t('User Group'), t('Time Limit (hours) Classroom'), t('Time Limit (hours) Group Study Room'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  else {
+    drupal_set_message(t('No entries meet the filter criteria (Name = "John" and Age > 18).'));
+  }
+  return $output;
+}
+
+//// Helper functions ////
+
+/**
+ * Implements hook_help().
+ *
+ * Show some help on each form provided by this module.
+ */
+function rc_res_help($path) {
+  $output = '';
+  switch ($path) {
+    case 'examples/rc_res':
+      $output = t('Generate a list of all entries in the database. There is no filter in the query.');
+      break;
+    case 'examples/rc_res/advanced':
+      $output  = t('A more complex list of entries in the database.') . ' ';
+      $output .= t('Only the entries with user_group = "John" and age older than 18 years are shown, the username of the person who created the entry is also shown.');
+      break;
+    case 'examples/rc_res/update':
+      $output = t('Demonstrates a database update operation.');
+      break;
+    case 'examples/rc_res/add':
+      $output = t('Add an entry to the rc_res table.');
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Implements hook_menu().
+ *
+ * Set up calls to drupal_get_form() for all our example cases.
+ */
+function rc_res_menu() {
+  $items = array();
+
+  $items['examples/rc_res'] = array(
+    'title' => 'RC-Res Rules',
+    'page callback' => 'rc_res_list',
+    'access callback' => TRUE,
+  );
+  $items['examples/rc_res/list'] = array(
+    'title' => 'List',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['examples/rc_res/add'] = array(
+    'title' => 'Add entry',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('rc_res_form_add'),
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -9,
+  );
+  $items['examples/rc_res/update'] = array(
+    'title' => 'Update entry',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('rc_res_form_update'),
+    'type' => MENU_LOCAL_TASK,
+    'access callback' => TRUE,
+    'weight' => -5,
+  );
+  $items['examples/rc_res/advanced'] = array(
+    'title' => 'Advanced list',
+    'page callback' => 'rc_res_advanced_list',
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Render a list of entries in the database.
+ */
+function rc_res_list() {
+  $output = '';
+
+  // Get all entries in the rc_res table.
+  if ($entries = rc_res_entry_load()) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', (array) $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Id'), t('Uid'), t('User Group'), t('Time Limit (hours) Classroom'), t('Time Limit (hours) Group Study Room'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  else {
+    drupal_set_message(t('No entries have been added yet.'));
+  }
+  return $output;
+}
+
+/**
+ * Prepare a simple form to add an entry, with all the interesting fields.
+ */
+function rc_res_form_add($form, &$form_state) {
+  $form = array();
+
+  $form['add'] = array(
+    '#type'  => 'fieldset',
+    '#title' => t('Add a rule entry'),
+  );
+  $form['add']['user_group'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('User Group'),
+    '#size'  => 15,
+  );
+  $form['add']['cls_lim'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Time Limit (hours) Classroom'),
+    '#size'  => 15,
+  );
+  $form['add']['gsr_lim'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('Time Limit (hours) Group Study Room'),
+    '#size'  => 5,
+    '#description' => t("Values greater than 127 will cause an exception. Try it - it's a great example why exception handling is needed with DTBNG."),
+  );
+  $form['add']['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Add'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit handler for 'add entry' form.
+ */
+function rc_res_form_add_submit($form, &$form_state) {
+
+    drupal_set_message(t("Created entryer"));		
+
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'user_group'    => $form_state['values']['user_group'],
+    'cls_lim' => $form_state['values']['cls_lim'],
+    'gsr_lim'     => $form_state['values']['gsr_lim'],
+    'uid'     => $user->uid,
+  );
+  $return = rc_res_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Created entry @entry", array('@entry' => print_r($entry, TRUE))));
+  }
+}
+
+/**
+ * Sample UI to update a record.
+ */
+function rc_res_form_update($form, &$form_state) {
+  $form = array(
+    '#prefix' => '<div id="updateform">',
+    '#suffix' => '</div>',
+  );
+
+  $entries = rc_res_entry_load();
+  $keyed_entries = array();
+  if (empty($entries)) {
+    $form['no_values'] = array(
+      '#value' => t("No entries exist in the table rc_res table."),
+    );
+    return $form;
+  }
+
+  foreach ($entries as $entry) {
+    $options[$entry->pid] = t("@pid: @user_group @cls_lim (@gsr_lim)", array('@pid' => $entry->pid, '@user_group' => $entry->user_group, '@cls_lim' => $entry->cls_lim, '@gsr_lim' => $entry->gsr_lim));
+    $keyed_entries[$entry->pid] = $entry;
+  }
+  $default_entry = !empty($form_state['values']['pid']) ? $keyed_entries[$form_state['values']['pid']] : $entries[0];
+
+  $form_state['entries'] = $keyed_entries;
+
+  $form['pid'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#title' => t('Choose entry to update'),
+    '#default_value' => $default_entry->pid,
+    '#ajax' => array(
+      'wrapper' => 'updateform',
+      'callback' => 'rc_res_form_update_callback',
+    ),
+  );
+
+  $form['user_group'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated first user_group'),
+    '#size' => 15,
+    '#default_value' => $default_entry->user_group,
+  );
+
+  $form['cls_lim'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated last name'),
+    '#size' => 15,
+    '#default_value' => $default_entry->cls_lim,
+  );
+  $form['gsr_lim'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Updated gsr_lim'),
+    '#size' => 4,
+    '#default_value' => $default_entry->gsr_lim,
+    '#description' => t("Values greater than 127 will cause an exception"),
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update'),
+  );
+  return $form;
+}
+
+/**
+ * AJAX callback handler for the pid select.
+ *
+ * When the pid changes, populates the defaults from the database in the form.f
+ */
+function rc_res_form_update_callback($form, $form_state) {
+  $entry = $form_state['entries'][$form_state['values']['pid']];
+  // Setting the #value of items is the only way I was able to figure out
+  // to get replaced defaults on these items. #default_value will not do it
+  // and shouldn't.
+  foreach (array('user_group', 'cls_lim', 'gsr_lim') as $item) {
+    $form[$item]['#value'] = $entry->$item;
+  }
+  return $form;
+}
+
+/**
+ * Submit handler for 'update entry' form.
+ */
+function rc_res_form_update_submit($form, &$form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'pid' => $form_state['values']['pid'],
+    'user_group' => $form_state['values']['user_group'],
+    'cls_lim' => $form_state['values']['cls_lim'],
+    'gsr_lim' => $form_state['values']['gsr_lim'],
+    'uid' => $user->uid,
+  );
+  $count = rc_res_entry_update($entry);
+  drupal_set_message(t("Updated entry @entry (@count row updated)", array('@count' => $count, '@entry' => print_r($entry, TRUE))));
+}
+/**
+ * @} End of "defgroup rc_res".
+ */

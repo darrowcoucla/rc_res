@@ -1,0 +1,4 @@
+name = Devel-Example
+description = Examples of various blocks, pages, and functions for developers.
+package = Development
+core = 7.x

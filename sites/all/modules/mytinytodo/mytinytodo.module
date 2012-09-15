@@ -1,0 +1,293 @@
+<?php
+
+/**
+ * @file
+ * An example field using the Field API.
+ *
+ * This is updated from Barry Jaspan's presentation at Drupalcon Paris,
+ * @link http://acquia.com/community/resources/acquia-tv/intro-field-api-module-developers Video Presentation @endlink
+ *
+ * Providing a field requires:
+ * - Defining a field
+ *   - hook_field_info()
+ *   - hook_field_schema()
+ *   - hook_field_validate()
+ *   - hook_field_is_empty()
+ *
+ * - Defining a formatter for the field (the portion that outputs the field for
+ *   display)
+ *   - hook_field_formatter_info()
+ *   - hook_field_formatter_view()
+ *
+ * - Defining a widget for the edit form
+ *   - hook_field_widget_info()
+ *   - hook_field_widget_form()
+ *
+ * *
+ * See @link field_types Field Types API @endlink
+ */
+
+/***************************************************************
+ * Field Type API hooks
+ ***************************************************************/
+
+/**
+ * Implements hook_menu().
+ *
+ * Provides a simple user interface that tells the developer where to go.
+ */
+function mytinytodo_menu() {
+  $items['mytinytodo/init']= array(
+    'page callback' => 'mytinytodo_init_js',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['mytinytodo/ajax']= array(
+    'page callback' => 'mytinytodo_ajax_inc',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['mytinytodo/page']= array(
+    'page callback' => 'mytinytodo_page_inc',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['mytinytodo/settings']= array(
+    'page callback' => 'mytinytodo_settings_inc',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['mytinytodo/feed']= array(
+    'page callback' => 'mytinytodo_feed_inc',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['mytinytodo/export']= array(
+    'page callback' => 'mytinytodo_export_inc',
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function mytinytodo_theme() {
+  $theme = array(
+   'mytinytodo_page' => array(
+		'template' => 'mytinytodo-page',
+		'path' => drupal_get_path('module', 'mytinytodo') . '/tpl',
+	),
+   'mytinytodo_html' => array(
+	    'variables' => array('delta' => NULL, 'eid' => NULL, 'pda' => NULL),
+		'file' => 'mytinytodo.theme.inc',
+	),
+  );
+
+  return $theme;
+}
+
+function mytinytodo_ajax_inc() {
+	module_load_include('inc', 'mytinytodo', 'mytinytodo/init');
+	module_load_include('php', 'mytinytodo', 'mytinytodo/ajax');
+}
+
+function mytinytodo_page_inc() {
+	module_load_include('inc', 'mytinytodo', 'mytinytodo/init');
+	die( theme('mytinytodo_page') );
+}
+
+function mytinytodo_settings_inc() {
+	module_load_include('inc', 'mytinytodo', 'mytinytodo/init');
+	module_load_include('php', 'mytinytodo', 'mytinytodo/settings');
+}
+
+function mytinytodo_feed_inc() {
+	module_load_include('inc', 'mytinytodo', 'mytinytodo/init');
+	module_load_include('php', 'mytinytodo', 'mytinytodo/feed');
+}
+
+function mytinytodo_export_inc() {
+	module_load_include('inc', 'mytinytodo', 'mytinytodo/init');
+	module_load_include('php', 'mytinytodo', 'mytinytodo/export');
+}
+
+function mytinytodo_init_js() {
+	module_load_include('inc', 'mytinytodo', 'mytinytodo/init');
+
+	header("Content-Type: text/javascript");
+	die(
+'
+(function ($) {
+  $().ready(function(){
+
+' . ((isset($_GET['pda'])) ? "
+
+	$('body').width(screen.width);
+	$(window).resize(function() {
+		$('body').width(screen.width);
+	});" : '' )
+		
+. '
+	mytinytodo.mttUrl = "/' . drupal_get_path('module', 'mytinytodo')  . '/mytinytodo/";'  . '
+	mytinytodo.templateUrl = "/' .drupal_get_path('module', 'mytinytodo') . '/mytinytodo/themes/default/";' . '
+	mytinytodo.db = new mytinytodoStorageAjax(mytinytodo);
+	mytinytodo.init({
+		showdate: ' . ((Config::get('showdate') && !isset($_GET['pda'])) ? "true" : "false") . ',
+		singletab: ' . ((isset($_GET['singletab']) || isset($_GET['pda'])) ? "true" : "false") . ',
+		duedatepickerformat: "' . htmlspecialchars(Config::get('dateformat2')) . '",
+		firstdayofweek: ' . (int) Config::get('firstdayofweek') . ',
+		autotag: ' . (Config::get('autotag') ? "true" : "false") . '
+		' . ((isset($_GET['list'])) ? ', openList: ' . (int)$_GET['list'] : '') . '
+		' . ((isset($_GET['pda'])) ?', touchDevice: true' : '') . '
+	}).loadLists(1);
+  });
+})(jQuery);');
+}
+
+/**
+ * Implements hook_field_info().
+ *
+ * Provides the description of the field.
+ */
+function mytinytodo_field_info() {
+  return array(
+    'mytinytodo_list' => array(
+      'label' => t('TODO list'),
+      'description' => t('A TODO list.'),
+      'default_widget' => 'mytinytodo_widget',
+      'default_formatter' => 'mytinytodo_formatter',
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_schema().
+ */
+function mytinytodo_field_schema($field) {
+  $columns = array();
+  if ($field['type'] == 'mytinytodo_list') {
+      $columns = array(
+        'display' => array(
+          'type' => 'int',
+          'default' => 1,
+          'not null' => FALSE,
+        ),
+      );
+  }
+
+  return array('columns' => $columns);
+}
+
+/**
+ * Implements hook_field_validate().
+ */
+function mytinytodo_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
+}
+
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function mytinytodo_field_is_empty($item, $field) {
+  return empty($item['display']);
+}
+
+/***********************************************************************
+ *  Field Type API: Formatter
+ *
+ *  These are the api hooks that present formatted (themed) output to the
+ *  user.
+ **********************************************************************/
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function mytinytodo_field_formatter_info() {
+  return array(
+    'mytinytodo_formatter' => array(
+      'label' => t('Default TODO list style.'),
+      'field types' => array('mytinytodo_list'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function mytinytodo_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+
+   foreach ($items as $delta => $item) {
+      $element[$delta]['#markup'] = '<iframe scrolling="auto" style="overflow-y: auto; width: 100%; height: 400px; border: none;" src="'
+              . url('mytinytodo/page', array(
+                'query' => array(
+                   'eid' => $entity->nid,
+                   'delta' => $instance['field_id'])))
+             . '"></iframe>';
+
+    }
+
+  return $element;
+}
+
+
+/**************************************************************************
+ * Field Type API: Widget
+ *
+ * The widget is the form element used to receive input from the user
+ * when the field is being populated.
+ **************************************************************************/
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function mytinytodo_field_widget_info() {
+  return array(
+    'mytinytodo_widget' => array(
+      'label' => t('myTinyTodo list'),
+      'field types' => array('mytinytodo_list'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function mytinytodo_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $value = isset($items[$delta]['display']) ? $items[$delta]['display'] : '';
+  $element += array(
+    '#delta' => $delta,
+  );
+  $element['display'] = array();
+
+  $element['display'] += array(
+		  '#type' => 'checkbox',
+		  '#title' => "Display {$instance['label']}?",
+		  '#default_value' => $value,
+		  );
+  return $element;
+}
+
+/**
+ * Implements hook_field_widget_error().
+ */
+function mytinytodo_field_widget_error($element, $error, $form, &$form_state) {
+  switch ($error['error']) {
+    case 'mytinytodo_invalid':
+      form_error($element, $error['message']);
+      break;
+  }
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function mytinytodo_views_api() {
+  return array(
+    'api' => 3, 
+    'path' => drupal_get_path('module', 'mytinytodo') . '/views',
+  );
+}

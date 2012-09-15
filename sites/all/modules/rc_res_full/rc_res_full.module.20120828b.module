@@ -1,0 +1,733 @@
+<?php
+/**
+ * @file
+ * This is an example outlining how a module can make use of the new DBTNG
+ * database API in Drupal 7.
+ *
+ * @todo Demonstrate transaction usage.
+ *
+ * General documentation is available at
+ * @link database Database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 @endlink.
+ */
+
+/**
+ * @defgroup rc_res Example: Database (DBTNG)
+ * @ingroup examples
+ * @{
+ * Database examples, including DBTNG.
+ *
+ * 'DBTNG' means 'Database: The Next Generation.' Yes, Drupallers are nerds.
+ *
+ * General documentation is available at
+ * @link database.inc database abstraction layer documentation @endlink and
+ * at @link http://drupal.org/node/310069 Database API @endlink.
+ *
+ * The several examples here demonstrate basic database usage.
+ *
+ * In Drupal 6, the recommended method to save or update an entry in the
+ * database was drupal_write_record() or db_query().
+ *
+ * In Drupal 7 and forward, the usage of db_query()
+ * for INSERT, UPDATE, or DELETE is deprecated, because it is
+ * database-dependent. Instead specific functions are provided to perform these
+ * operations: db_insert(), db_update(), and db_delete() do the job now.
+ * (Note that drupal_write_record() is also deprecated.)
+ *
+ * db_insert() example:
+ * @code
+ *   // INSERT INTO {rc_res_full} (name, surname) VALUES('John, 'Doe')
+ *   db_insert('rc_res_full')
+ *     ->fields(array('name' => 'John', 'surname' => 'Doe'))
+ *     ->execute();
+ * @endcode
+ *
+ * db_update() example:
+ * @code
+ *   // UPDATE {rc_res_full} SET name = 'Jane' WHERE name = 'John'
+ *   db_update('rc_res_full')
+ *     ->fields(array('name' => 'Jane'))
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * db_delete() example:
+ * @code
+ *   // DELETE FROM {rc_res_full} WHERE name = 'Jane'
+ *   db_delete('rc_res_full')
+ *     ->condition('name', 'Jane')
+ *     ->execute();
+ * @endcode
+ *
+ * See @link database Database Abstraction Layer @endlink
+ * @see db_insert()
+ * @see db_update()
+ * @see db_delete()
+ * @see drupal_write_record()
+*/
+
+/**
+ * Save an entry in the database.
+ *
+ * The underlying DBTNG function is db_insert().
+ *
+ * In Drupal 6, this would have been:
+ * @code
+ *   db_query(
+ *     "INSERT INTO {rc_res_full} (name, surname, age)
+ *       VALUES ('%s', '%s', '%d')",
+ *     $entry['name'],
+ *     $entry['surname'],
+ *     $entry['age']
+ *   );
+ * @endcode
+ *
+ * Exception handling is shown in this example. It could be simplified
+ * without the try/catch blocks, but since an insert will throw an exception
+ * and terminate your application if the exception is not handled, it is best
+ * to employ try/catch.
+ *
+ * @param $entry
+ *   An array containing all the fields of the database record.
+ *
+ * @see db_insert()
+ */
+function rc_res_full_entry_insert($entry) {
+  $return_value = NULL;
+  try {
+    $return_value = db_insert('rc_res_full')
+                    ->fields($entry)
+                    ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $return_value;
+}
+
+/**
+ * Update an entry in the database.
+ *
+ * The former, deprecated techniques used db_query() or drupal_write_record():
+ * @code
+ *  drupal_write_record('rc_res_full', $entry, $entry['pid']);
+ * @endcode
+ *
+ * @code
+ *  db_query(
+ *    "UPDATE {rc_res_full}
+ *     SET name = '%s', surname = '%s', age = '%d'
+ *     WHERE pid = %d",
+ *     $entry['pid']
+ *  );
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields of the item to be updated.
+ *
+ * @see db_update()
+ */
+function rc_res_full_entry_update($entry) {
+  try {
+    // db_update()...->execute() returns the number of rows updated.
+    $count = db_update('rc_res_full')
+              ->fields($entry)
+              ->condition('pid', $entry['pid'])
+              ->execute();
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_update failed. Message = %message, query= %query',
+      array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  }
+  return $count;
+}
+
+/**
+ * Delete an entry from the database.
+ *
+ * The usage of db_query is deprecated except for static queries.
+ * Formerly, a deletion might have been accomplished like this:
+ * @code
+ *  db_query("DELETE FROM {rc_res_full} WHERE pid = %d", $entry['pid]);
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing at least the person identifier 'pid' element of the
+ *   entry to delete.
+ *
+ * @see db_delete()
+ */
+function rc_res_full_entry_delete($entry) {
+  db_delete('rc_res_full')
+    ->condition('pid', $entry['pid'])
+    ->execute();
+
+}
+
+
+/**
+ * Read from the database using a filter array.
+ *
+ * In Drupal 6, the standard function to perform reads was db_query(), and
+ * for static queries, it still is.
+ *
+ * db_query() used an SQL query with placeholders and arguments as parameters.
+ *
+ * @code
+ *  // Old way
+ *  $query = "SELECT * FROM {rc_res_full} n WHERE n.uid = %d AND name = '%s'";
+ *  $result = db_query($query, $uid, $name);
+ * @endcode
+ *
+ * Drupal 7 DBTNG provides an abstracted interface that will work with a wide
+ * variety of database engines.
+ *
+ * db_query() is deprecated except when doing a static query. The following is
+ * perfectly acceptable in Drupal 7. See
+ * @link http://drupal.org/node/310072 the handbook page on static queries @endlink
+ *
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE uid = 0 AND name = 'John'
+ *   db_query(
+ *     "SELECT * FROM {rc_res_full} WHERE uid = :uid and name = :name",
+ *     array(':uid' => 0, ':name' => 'John')
+ *   )->execute();
+ * @endcode
+ *
+ * But for more dynamic queries, Drupal provides the db_select()
+ * API method, so there are several ways to perform the same SQL query.
+ * See the @link http://drupal.org/node/310075 handbook page on dynamic queries. @endlink
+ *
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE uid = 0 AND name = 'John'
+ *   db_select('rc_res_full')
+ *     ->fields('rc_res_full')
+ *     ->condition('uid', 0)
+ *     ->condition('name', 'John')
+ *     ->execute();
+ * @endcode
+ *
+ * Here is db_select with named placeholders:
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE uid = 0 AND name = 'John'
+ *   $arguments = array(':name' => 'John', ':uid' => 0);
+ *   db_select('rc_res_full')
+ *     ->fields('rc_res_full')
+ *     ->where('uid = :uid AND name = :name', $arguments)
+ *     ->execute();
+ * @endcode
+ *
+ * Conditions are stacked and evaluated as AND and OR depending on the type of
+ * query. For more information, read the conditional queries handbook page at:
+ * http://drupal.org/node/310086
+ *
+ * The condition argument is an 'equal' evaluation by default, but this can be
+ * altered:
+ * @code
+ *   // SELECT * FROM {rc_res_full} WHERE age > 18
+ *   db_select('rc_res_full')
+ *     ->fields('rc_res_full')
+ *     ->condition('age', 18, '>')
+ *     ->execute();
+ * @endcode
+ *
+ * @param $entry
+ *   An array containing all the fields used to search the entries in the table.
+ * @return
+ *   An object containing the loaded entries if found.
+ *
+ * @see db_select()
+ * @see db_query()
+ * @see http://drupal.org/node/310072
+ * @see http://drupal.org/node/310075
+ *
+ */
+function rc_res_full_entry_load($entry = array()) {
+  // Read all fields from the rc_res_full table.
+  $select = db_select('rc_res_full', 'example');
+  $select->fields('example');
+
+  // Add each field and value as a condition to this query.
+  foreach ($entry as $field => $value) {
+    $select->condition($field, $value);
+  }
+  // Return the result in object format.
+  return $select->execute()->fetchAll();
+}
+
+/**
+ * Implements hook_menu().
+ *
+ * Set up calls to drupal_get_form() for all our example cases.
+ */
+function rc_res_full_menu() {
+  $items = array();
+
+  $items['examples/rc_res_full'] = array(
+    'title' => 'RC-Res Reservations',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('rc_res_full_form_page_one'),
+    'access callback' => TRUE,
+  );
+  $items['examples/rc_res_full/list'] = array(
+    'title' => 'Sign in',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+  $items['examples/rc_res_full/list_users'] = array(
+    'title' => 'List Users',
+    'page callback' => 'rc_res_full_list',
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -9,
+  );
+
+  return $items;
+}
+
+/**
+ * Render a list of entries in the database.
+ */
+function rc_res_full_list() {
+  $output = '';
+
+  // Get all entries in the rc_res_full table.
+  if ($entries = rc_res_full_entry_load()) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', (array) $entry);
+    }
+    // Make a table for them.
+    $header = array(t('Id'), t('Uid'), t('User Name'), t('User Pwd'));
+    $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  }
+  else {
+    drupal_set_message(t('No entries have been added yet.'));
+  }
+  return $output;
+}
+
+/**
+ * Create a form to add an entry, ......................................................................................................................
+ * Create a form to add an entry, ......................................................................................................................
+ * Create a form to add an entry, ......................................................................................................................
+ */
+
+/**
+ * page 1 ......................................................................................................................
+ * page 1 ......................................................................................................................
+ * page 1 ......................................................................................................................
+ */
+function rc_res_full_form_page_one($form, &$form_state) {
+  // Jump to appropriate pafe if necessary
+  // Jump to appropriate pafe if necessary
+  // Jump to appropriate pafe if necessary
+  // Display page 2 if $form_state['page_num'] == 2
+  if (!empty($form_state['page_num']) && $form_state['page_num'] == 2) {
+    return rc_res_full_form_page_two($form, $form_state);
+  }
+  elseif (!empty($form_state['page_num']) && $form_state['page_num'] == 3) {
+    return rc_res_full_form_page_three($form, $form_state);
+  }
+
+  // Otherwise we build page 1.
+  // Otherwise we build page 1.
+  // Otherwise we build page 1.
+  $form_state['page_num'] = 1;
+  $form = array();
+  $form['description'] = array(
+    '#type'  => 'item',
+    '#title' => t('Sign in using Shibboleth, p1'),
+  );
+  $form['user_name'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('User Name'),
+    '#size'  => 15,
+  );
+  $form['user_pwd'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('User Pwd'),
+    '#size'  => 15,
+  );
+  $form['next'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Sign in'),
+    '#submit' => array('rc_res_full_form_page_one_handler_submit'),
+  );
+  return $form;
+}
+
+/**
+ * page 2 ......................................................................................................................
+ * page 2 ......................................................................................................................
+ * page 2 ......................................................................................................................
+ */
+function rc_res_full_form_page_two($form, &$form_state) {
+  // Build page 2.
+  // Build page 2.
+  // Build page 2.
+  $form = array();
+
+  $form['reservation_type'] = array(
+    '#type' => 'radios',
+    '#options' => array(
+      'studyroom_or_pod'   => t('Reserve a Group Study Room or Collaboration Pod.'),
+      'classroom_or_alcove_or_multi' => t('Reserve a Classroom or Alcove, or reserve multiple spaces at the same time.'),
+    ),
+    '#title' => t('Start your Reservation'),
+  );
+
+  $form['submit'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Next'),
+    '#submit' => array('rc_res_full_form_page_two_handler_submit'),
+  );
+  return $form;
+}
+
+/**
+ * page 3 ......................................................................................................................
+ * page 3 ......................................................................................................................
+ * page 3 ......................................................................................................................
+ */
+function rc_res_full_form_page_three($form, &$form_state) {
+  // Build page 3.
+  // Build page 3.
+  // Build page 3.
+
+  // Get all entries in the dbtng_example table.
+  if ($entries = rc_res_test_entry_load()) {
+    $rows = array();
+    foreach ($entries as $entry) {
+      // Sanitize the data before handing it off to the theme layer.
+      $rows[] = array_map('check_plain', (array) $entry);
+    }
+  }
+
+  // Extract the fields needed
+  $users_test = array();
+    foreach ($rows as $row) {
+      $users_test[] = array
+      (
+	array('uid' => $row['uid'], 'start_date' => $row['dateor_0'], 'start_time' => $row['timeor_0'], 'stop_date' => $row['dateor_1'], 'stop_time' => $row['timeor_1']),
+      );
+    }
+
+  $header_test = array
+  (
+    'start_date' => t('Start Date'),
+    'start_time' => t('Time'),
+    'stop_date' => t('Stop Date'),
+    'stop_time' => t('Time'),
+  );
+
+
+
+// Initialize an empty array
+$options_test = array();
+// Next, loop through the $users array
+
+
+foreach($users_test as $user_test)
+{
+
+
+krumo($user_test);
+
+  $options_test[$user_test[0]['uid']] = array // each element of the array is keyed with the UID
+  (
+    'start_date' => $user_test[0]['start_date'], // 'start_date' was the key used in the header
+    'start_time' => $user_test[0]['start_time'], // 'start_time' was the key used in the header
+    'stop_date' => $user_test[0]['stop_date'], // 'start_date' was the key used in the header
+    'stop_time' => $user_test[0]['stop_time'], // 'start_time' was the key used in the header
+  );
+}
+
+
+  $demos = array(
+  $form['table'] = array
+  (
+    '#type' => 'tableselect',
+    '#header' => $header_test,
+    '#options' => $options_test,
+    '#empty' => t('No users found'),
+  ),
+
+  $form['submit'] = array
+  (
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  ),
+
+
+  );
+
+  // The rest of this function just places the above arrays in a context where
+  // they can be rendered (hopefully attractively and usefully) on the page.
+  $page_array = array();
+  foreach ($demos as $key => $item) {
+
+    $page_array[$key]['#description'] = $key;
+    $page_array[$key]['hr'] = array('#markup' => '<hr/>');
+    $page_array[$key]['rendered'] = array($item);
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  return $page_array;
+
+}
+
+/**
+ * Page 1 submit handler.
+ *
+ * Save the vals from page one for a later final submit.
+ */
+function rc_res_full_form_page_one_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+  $form_state['page_values'][1] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][2])) {
+    $form_state['values'] = $form_state['page_values'][2];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 2;
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Page 2 submit handler.
+ *
+ * Save the vals from page two for a later final submit.
+ */
+function rc_res_full_form_page_two_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+  $form_state['page_values'][2] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][3])) {
+    $form_state['values'] = $form_state['page_values'][3];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 3;
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Page 3 submit handler.
+ *
+ * Save the vals from page three for a later final submit.
+ */
+function rc_res_full_form_page_three_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+  $form_state['page_values'][3] = $form_state['values'];
+
+  if (!empty($form_state['page_values'][4])) {
+    $form_state['values'] = $form_state['page_values'][4];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 4;
+  $form_state['rebuild'] = TRUE;
+}
+
+
+
+
+
+
+
+/**
+ * Page X submit handler.
+ *
+ * This is the final submit handler. Gather all the data together and save it to the db.
+ * Also display it in a drupal_set_message() for development.
+ */
+function rc_res_full_form_page_X_handler_submit($form, &$form_state) {
+  // Normally, some code would go here to alter the database with the data
+  // collected from the form. Instead sets a message with drupal_set_message()
+  // to validate that the code worked.
+  $page_one_values = $form_state['page_values'][1];
+  drupal_set_message(t('The form has been submitted. User Name = @user_name, User Password = @user_pwd',
+  array('@user_name' => $page_one_values['user_name'], '@user_pwd' => $page_one_values['user_pwd'])));
+
+  if (!empty($page_one_values['user_name2'])) {
+    drupal_set_message(t('Second name: name="@user_name @user_pwd", year of birth=@year_of_birth',
+    array('@user_name' => $page_one_values['first2'], '@user_pwd' => $page_one_values['last2'], '@year_of_birth' => $page_one_values['year_of_birth2'])));
+  }
+  drupal_set_message(t('Reservation type is @reservation_type', array('@reservation_type' => $form_state['values']['reservation_type'])));
+
+  // If we wanted to redirect on submission, set $form_state['redirect']
+  // $form_state['redirect'] = 'node'; // Redirects the user to /node.
+
+  $uid_from_shib = '9999';
+  if( $page_one_values['user_name'] == 'joebruin' ){
+    $uid_from_shib = '1234';
+  }
+  else if( $page_one_values['user_name'] == 'janebruin' ){
+    $uid_from_shib = '5678';
+  }
+
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'user_name'    => $page_one_values['user_name'],
+    'user_pwd' => $page_one_values['user_pwd'],
+    'uid'     => $uid_from_shib,
+  );
+  $return = rc_res_full_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Using UID = @entry", array('@entry' => print_r($entry['uid'], TRUE))));
+  }
+  $form_state['redirect'] = '';
+}
+
+
+/**
+ * Submit handler for 'add entry' form.
+ */
+function rc_res_full_form_submit($form, &$form_state) {
+
+  $uid_from_shib = '9999';
+  if( $form_state['values']['user_name'] == 'joebruin' ){
+    $uid_from_shib = '1234';
+  }
+  else if( $form_state['values']['user_name'] == 'janebruin' ){
+    $uid_from_shib = '5678';
+  }
+
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'user_name'    => $form_state['values']['user_name'],
+    'user_pwd' => $form_state['values']['user_pwd'],
+    'uid'     => $uid_from_shib,
+  );
+  $return = rc_res_full_entry_insert($entry);
+  if ($return) {
+    drupal_set_message(t("Using UID = @entry", array('@entry' => print_r($entry['uid'], TRUE))));
+  }
+  $form_state['redirect'] = '';
+}
+
+/**
+ * Sample UI to update a record.
+ */
+function rc_res_full_form_update($form, &$form_state) {
+  $form = array(
+    '#prefix' => '<div id="updateform">',
+    '#suffix' => '</div>',
+  );
+
+  $entries = rc_res_full_entry_load();
+  $keyed_entries = array();
+  if (empty($entries)) {
+    $form['no_values'] = array(
+      '#value' => t("No entries exist in the table rc_res_full table."),
+    );
+    return $form;
+  }
+
+  foreach ($entries as $entry) {
+    $options[$entry->pid] = t("@pid: @user_name @user_pwd", array('@pid' => $entry->pid, '@user_name' => $entry->user_name, '@user_pwd' => $entry->user_pwd));
+    $keyed_entries[$entry->pid] = $entry;
+  }
+  $default_entry = !empty($form_state['values']['pid']) ? $keyed_entries[$form_state['values']['pid']] : $entries[0];
+
+  $form_state['entries'] = $keyed_entries;
+
+  $form['pid'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#title' => t('Choose entry to update'),
+    '#default_value' => $default_entry->pid,
+    '#ajax' => array(
+      'wrapper' => 'updateform',
+      'callback' => 'rc_res_full_form_update_callback',
+    ),
+  );
+
+  $form['user_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User Name'),
+    '#size' => 15,
+    '#default_value' => $default_entry->user_name,
+  );
+
+  $form['user_pwd'] = array(
+    '#type' => 'textfield',
+    '#title' => t('User Pwd'),
+    '#size' => 15,
+    '#default_value' => $default_entry->cls_pwd,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update'),
+  );
+  return $form;
+}
+
+/**
+ * AJAX callback handler for the pid select.
+ *
+ * When the pid changes, populates the defaults from the database in the form.f
+ */
+function rc_res_full_form_update_callback($form, $form_state) {
+  $entry = $form_state['entries'][$form_state['values']['pid']];
+  // Setting the #value of items is the only way I was able to figure out
+  // to get replaced defaults on these items. #default_value will not do it
+  // and shouldn't.
+  foreach (array('user_name', 'user_name') as $item) {
+    $form[$item]['#value'] = $entry->$item;
+  }
+  return $form;
+}
+
+/**
+ * Submit handler for 'update entry' form.
+ */
+function rc_res_full_form_update_submit($form, &$form_state) {
+  global $user;
+
+  // Save the submitted entry.
+  $entry = array(
+    'pid' => $form_state['values']['pid'],
+    'user_name' => $form_state['values']['user_name'],
+    'user_pwd' => $form_state['values']['user_pwd'],
+    'uid' => $user->uid,
+  );
+  $count = rc_res_full_entry_update($entry);
+  drupal_set_message(t("Updated"));
+}
+/**
+ * @} End of "defgroup rc_res_full".
+ */
