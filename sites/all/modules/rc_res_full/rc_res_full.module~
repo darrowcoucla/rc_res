@@ -513,6 +513,10 @@ krumo($response);
   }
   }
 
+  if(!$options_form){
+    $sub_delete = FALSE;
+  }
+
   $demos0 = array();
   $demos0 = array(
     $form['description'] = array
@@ -535,6 +539,7 @@ krumo($response);
       '#type' => 'submit',
       '#value' => t('Delete'),
       '#submit' => array('rc_res_full_form_page_three_delete_handler_submit'),
+      '#access' => $sub_delete,
     ),
   );
 
@@ -1597,7 +1602,8 @@ krumo($str_create1);
   $params = json_encode($str_create1);
 
   // right way to post data - Drupal 7
-  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/117', array(
+  $url_stack = "http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/release/" . "$rrid";
+  $response = drupal_http_request($url_stack, array(
     'method' => 'POST',
     'data' => $params, // see comments below - you may need to change this
     'headers' => array('Content-Type' => 'application/json')

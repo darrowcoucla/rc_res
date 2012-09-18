@@ -513,6 +513,10 @@ krumo($response);
   }
   }
 
+  if(!$options_form){
+    $sub_delete = FALSE;
+  }
+
   $demos0 = array();
   $demos0 = array(
     $form['description'] = array
@@ -535,6 +539,7 @@ krumo($response);
       '#type' => 'submit',
       '#value' => t('Delete'),
       '#submit' => array('rc_res_full_form_page_three_delete_handler_submit'),
+      '#access' => $sub_delete,
     ),
   );
 
@@ -593,7 +598,7 @@ $demos[] = $demos2;
   $page_array = array();
   foreach ($demos as $key => $item) {
     $page_array[$key]['#description'] = $key;
-    $page_array[$key]['hr'] = array('#markup' => '<hr/>');
+//    $page_array[$key]['hr'] = array('#markup' => '<hr/>');
     $page_array[$key]['rendered'] = array($item);
   }
   return $page_array;
