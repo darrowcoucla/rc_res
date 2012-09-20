@@ -444,6 +444,8 @@ drupal_set_message(t("User ID: " . variable_get('working_uid') ));
   $url_stack = "http://lit321v-b.library.ucla.edu/rcres/reservation/release/" . "$working_rid";
   $url = $url_stack;
 
+krumo($url);
+
   $response = drupal_http_request($url, array(
     'method' => 'DELETE',
     'headers' => array('Pragma" => "no-cache', 'Cache-Control' => 'no-cache'),
@@ -515,6 +517,8 @@ krumo($response);
 
   if(!$options_form){
     $sub_delete = FALSE;
+  } else {
+    $sub_delete = TRUE;
   }
 
   $demos0 = array();
@@ -544,7 +548,7 @@ krumo($response);
   );
 
   $demos1 = array();
-  if( $lcnt >= 3 ){
+  if( $lcnt >= 4 ){
   $demos1 = array(
     // future: if too many existing reservations, gray this out
     $form['description'] = array
@@ -557,7 +561,7 @@ krumo($response);
 
 
   $demos2 = array();
-  if( $lcnt >= 3 ){
+  if( $lcnt >= 4 ){
   $demos2 = array(
     $form['submit'] = array
     (
@@ -678,7 +682,7 @@ drupal_set_message(t("User ID: " . variable_get('working_uid') ));
   // read reervations given an UID (currently simulated in drupal)
   $rows = array();
 
-  $rows = rc_res_full_get_resources_for_period();
+  $rows = rc_res_full_get_resources_for_period($form, $form_state);
 
 //  rc_res_full_set_user_reservations($working_uid);
   //rc_res_full_get_open_resources();
@@ -860,9 +864,9 @@ krumo($form_state['page_values'][5]['table']);
     'pending' => true,
     'numberOfAttendees' => $rcap,
     'email' => $uemail,
-    'phone' => '310-206-5565',
-    'firstName' => 'Darrow',
-    'lastName' => 'Cole',
+    'phone' => '310-206-9780',
+    'firstName' => 'David',
+    'lastName' => 'Rickard',
     'academicDept' => $udept,
     'academicDeptOther' => 'Education',
     'division' => 'Staff',
@@ -1522,13 +1526,34 @@ krumo($response_voy);
 /**
  * get list of available resources after starting time given start date/time and period
  */
-function rc_res_full_get_resources_for_period() {
+function rc_res_full_get_resources_for_period($form, $form_state) {
 
 // Set some parameters for sending request.
 
 // test and setup string
 //$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/2013-01-17+07%3a00+PM/until/96/length/1';
-$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/2012-09-11+07%3a00+PM/until/48/length/3';
+
+  $delimiter = ' ';
+  $string = $form_state['page_values'][4]['date'];
+  $sub_array = explode ( $delimiter, $string );
+  $rdate = $sub_array[0];
+
+  $rtime = $sub_array[1];
+  $rtime12h = date("h", strtotime($rtime));
+  $rtime12m = date("i", strtotime($rtime));
+  $rtime12a = date("a", strtotime($rtime));
+
+  $rlength = $form_state['page_values'][4]['res_length'];
+  $rlength =   $rlength/30;
+
+krumo($rdate);
+krumo($rtime12h);
+krumo($rtime12m);
+krumo($rtime12a);
+krumo($rlength);
+
+$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/'."$rdate"."+"."$rtime12h".'%3a'."$rtime12m".'+'."$rtime12a".'/until/48/length/'."$rlength";
+//$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/2012-09-18+08%3a00+AM/until/48/length/3';
 $request_headers = array('Content-Type' => 'application/x-www-form-urlencoded');
 $request_method = 'POST';
 $data = '';
@@ -1576,38 +1601,18 @@ krumo($response_voy);
 function rc_res_full_set_user_reservations($rrid, $str_create1) {
 
 krumo($str_create1);
+krumo($rrid);
 
   $params = array();
-
-  $c_array = array(
-    'description' => 'testing ',
-    'start' => '2013-01-17 03:00 PM',
-    'end' => '2013-01-17 03:30 PM',
-    'pending' => true,
-    'numberOfAttendees' => 3,
-    'email' => 'darrowco@library.ucla.edu',
-    'phone' => '310-206-5565',
-    'firstName' => 'Darrow',
-    'lastName' => 'Cole',
-    'academicDept' => 'Other',
-    'academicDeptOther' => 'Education',
-    'division' => 'Staff',
-    'courseLevel' => 'Meeting',
-    'srs' => '111222333',
-    'computerUse' => 'No',
-    'internalNotes' => 'Testing web service, I will delete',
-    'uid' => '502673598',
-  );
-
   $params = json_encode($str_create1);
 
   // right way to post data - Drupal 7
-  $url_stack = "http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/release/" . "$rrid";
-  $response = drupal_http_request($url_stack, array(
+  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/'.$rrid, array(
     'method' => 'POST',
     'data' => $params, // see comments below - you may need to change this
     'headers' => array('Content-Type' => 'application/json')
   ));
+
 
 
 //  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/1', $headers = array('Content-Type' => 'application/json'), $method = 'POST', $data = $params, $retry = 3);
@@ -1616,19 +1621,21 @@ krumo($response);
 
 }
 
+
+// good 20120919, demo setting reservation
 /**
- * set new user reservations
+ * set new user reservations - good 20120919
  */
 function rc_res_full_set_user_reservations_0($working_uid) {
 
   $c_array = array(
     'description' => 'testing ',
-    'start' => '2012-09-05 07:00 PM',
-    'end' => '2012-09-05 07:30 PM',
+    'start' => '2012-09-20 08:00 AM',
+    'end' => '2012-09-20 10:00 AM',
     'pending' => true,
-    'numberOfAttendees' => 3,
-    'email' => 'darowco@library.ucla.edu',
-    'phone' => '310-206-5565',
+    'numberOfAttendees' => 2,
+    'email' => 'darrowco@library.ucla.edu',
+    'phone' => '310-206-9780',
     'firstName' => 'Darrow',
     'lastName' => 'Cole',
     'academicDept' => 'Other',
@@ -1641,16 +1648,21 @@ function rc_res_full_set_user_reservations_0($working_uid) {
     'uid' => '502673598',
   );
 
-  $data = json_encode($c_array);
+  $params = json_encode($c_array);
 
-  $url = 'http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/100';
-  $request_headers = array("content-type" => "application/json");
+  // right way to post data - Drupal 7
+  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/118', array(
+    'method' => 'POST',
+    'data' => $params, // see comments below - you may need to change this
+    'headers' => array('Content-Type' => 'application/json')
+  ));
 
-  $request = drupal_http_request($url, $request_headers, 'POST', $data);
-
-krumo($request);
+krumo($response);
 
 }
+// good 20120919
+
+
 
 // store here temporarily
 //  get go / no go from RS (resource scheduler
