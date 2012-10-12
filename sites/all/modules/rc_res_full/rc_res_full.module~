@@ -264,11 +264,9 @@ function rc_res_full_menu() {
   $items = array();
   global $rc_res_full_get_user_category;
   $items['examples/rc_res_full'] = array(
-    'title' => 'RC-Res Reservations..',
+    'title' => 'RC-Res Reservations',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('rc_res_full_form_page_one'),
- 'type' => MENU_LOCAL_TASK,
-    'weight' => -11,
     'access callback' => TRUE,
   );
   $items['examples/rc_res_full/list'] = array(
