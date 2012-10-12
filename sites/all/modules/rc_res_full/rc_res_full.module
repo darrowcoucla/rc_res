@@ -320,6 +320,13 @@ function rc_res_full_list() {
  * page 1 ......................................................................................................................
  */
 function rc_res_full_form_page_one($form, &$form_state) {
+
+
+$GLOBALS['conf']['cache']=FALSE;
+
+
+
+
   // Jump to appropriate pafe if necessary
   // Jump to appropriate pafe if necessary
   // Jump to appropriate pafe if necessary
