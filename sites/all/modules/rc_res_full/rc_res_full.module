@@ -4,7 +4,7 @@
  * This is an example outlining how a module can make use of the new DBTNG
  * database API in Drupal 7.
  *
- * @todo Demonstrate transaction usage.
+ * @todo Demonstrate transaction usage. 
  *
  * General documentation is available at
  * @link database Database abstraction layer documentation @endlink and
