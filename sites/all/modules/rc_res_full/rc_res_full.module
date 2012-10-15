@@ -1,7 +1,7 @@
 <?php
 /**
  * @file
- * This is an example outlining how a module can make use of the new DBTNG...
+ * This is an example outlining how a module can make use of the new DBTNG...,,,
  * database API in Drupal 7.
  *
  * @todo Demonstrate transaction usage. 
