@@ -2,7 +2,7 @@
 /**
  * @file
  * This is an example outlining how a module can make use of the new DBTNG
- * database API in Drupal 7....
+ * database API in Drupal 7.
  *
  * @todo Demonstrate transaction usage.
  *
@@ -366,12 +366,18 @@ $GLOBALS['conf']['cache']=FALSE;
   );
   $form['user_name'] = array(
     '#type'  => 'textfield',
-    '#title' => t('User Name'),
+    '#title' => t('User First Name'),
     '#size'  => 15,
   );
   $form['user_pwd'] = array(
-    '#type'  => 'password',
-    '#title' => t('User Pwd'),
+    '#type'  => 'textfield',
+    '#title' => t('User Last Name'),
+    '#size'  => 15,
+  );
+
+  $form['user_uid_temp'] = array(
+    '#type'  => 'textfield',
+    '#title' => t('User UID'),
     '#size'  => 15,
   );
 
@@ -837,7 +843,7 @@ $working_uid = variable_get('working_uid');
     'uid' => '502673598',
   );
 
-krumo($form_state['page_values'][5]['table']);
+krumo($form_state);
 
   $delimiter = ':::';
   $string = $form_state['page_values'][5]['table'];
@@ -859,9 +865,11 @@ krumo($form_state['page_values'][5]['table']);
 
   $rend = date('Y-m-d h:i A', strtotime($rstart)+$res_length);
   $rcap = $sub_array[3];
+  $ufname = $form_state['page_values'][1]['user_name'];
+  $ulname = $form_state['page_values'][1]['user_pwd'];
   $uemail = $form_state['page_values'][6]['user_email'];
   $udept = $form_state['page_values'][6]['user_dept'];
-
+  $course_level = 0;
 
 
   $str_create1 = array(
@@ -871,17 +879,18 @@ krumo($form_state['page_values'][5]['table']);
     'pending' => true,
     'numberOfAttendees' => $rcap,
     'email' => $uemail,
-    'phone' => '310-206-9780',
-    'firstName' => 'David',
-    'lastName' => 'Rickard',
+    'phone' => '310-206-5565',
+    'firstName' => $ufname,
+    'lastName' => $ulname,
     'academicDept' => $udept,
     'academicDeptOther' => 'Education',
     'division' => 'Staff',
-    'courseLevel' => 'Meeting',
+    'courseLevel' => $course_level,
     'srs' => '111222333',
     'computerUse' => 'No',
     'internalNotes' => 'Testing web service, I will delete',
     'uid' => $working_uid,
+//    'uid' => '603513612',
   );
 
 krumo($str_create1);
@@ -915,11 +924,13 @@ krumo($str_create1);
  */
 function rc_res_full_form_page_one_handler_submit($form, &$form_state) {
 
+  $form_state['page_values'][1] = $form_state['values'];
+
   // set page num if it does not yet exist, ie this is the first pass
   if (empty($form_state['page_num'])) { $form_state['page_num'] = 1; } 
 
   // try to get UID from Shibboleth
-  $uid_from_shib = get_uid_from_shib($form['user_name']['#value'],$form['user_pwd']['#value']);
+  $uid_from_shib = get_uid_from_shib($form['user_name']['#value'],$form['user_pwd']['#value'],$form['user_uid_temp']['#value']);
 
   // if UID from Shibolleth is not valid
   if ( $uid_from_shib < 0 ){
@@ -1289,7 +1300,22 @@ function rc_res_full_form_update_submit($form, &$form_state) {
 /**
  * get the UID from shib based on user login values
  */
-function get_uid_from_shib($user_name, $user_pwd) {
+function get_uid_from_shib($user_name, $user_pwd, $user_uid_temp) {
+
+global $user;
+print_r("fffff");
+
+// dhc - temp passes UID in username, version 1 is below: function get_uid_from_shib($user_name, $user_pwd) {
+// dhc - need to make version 3 after shib works
+  $uid_from_shib = 0;
+  $uid_from_shib = $user_uid_temp;
+  return $uid_from_shib;
+}
+
+/**
+ * get the UID from shib based on user login values
+ */
+function get_uid_from_shib_old($user_name, $user_pwd) {
 
 global $user;
 print_r("fffff");
