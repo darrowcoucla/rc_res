@@ -1,6 +1,6 @@
 name = RC-Res Full
 description = Main RC-Res Module
-package = RC-Res modules
+package = RC-Res modules222
 core = 7.x
 files[] = rc_res.test
 

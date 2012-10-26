@@ -1,7 +1,7 @@
 <?php
 /**
  * @file
- * This is an example outlining how a module can make use of the new DBTNG...,,,
+ * This is an example outlining how a module can make use of the new DBTNG
  * database API in Drupal 7.
  *
  * @todo Demonstrate transaction usage. 
@@ -261,13 +261,24 @@ function rc_res_full_entry_load($entry = array()) {
  * Set up calls to drupal_get_form() for all our example cases.
  */
 function rc_res_full_menu() {
+
+    rc_res_custom_menu();
+
   $items = array();
   global $rc_res_full_get_user_category;
   $items['examples/rc_res_full'] = array(
-    'title' => 'RC-Res Reservations',
+    'title' => 'RC-Res Reservations111',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('rc_res_full_form_page_one'),
     'access callback' => TRUE,
+    'menu_name' => 'navigation',
+  );
+  $items['examples/rc_res_full2'] = array(
+    'title' => 'RC-Res Reservations222',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('rc_res_full_form_page_one'),
+    'access callback' => TRUE,
+    'menu_name' => 'rc-res-menutest',
   );
   $items['examples/rc_res_full/list'] = array(
     'title' => 'Sign in',
@@ -457,7 +468,7 @@ drupal_set_message(t("User ID: " . variable_get('working_uid') ));
   $url_stack = "http://lit321v-b.library.ucla.edu/rcres/reservation/release/" . "$working_rid";
   $url = $url_stack;
 
-krumo($url);
+//krumo($url);
 
   $response = drupal_http_request($url, array(
     'method' => 'DELETE',
@@ -465,7 +476,7 @@ krumo($url);
   )
   );
 
-krumo($response);
+//krumo($response);
 
 //  $reservation_status = $response_del->data;
 
@@ -640,7 +651,7 @@ drupal_set_message(t("User ID: " . variable_get('working_uid') ));
   $default_date_time = preg_replace( '/\d\d:\d\d:\d\d/', '08:00:00', $default_date_time );
 
   $form['date'] = array(
-    '#title' => t('Set Reservation Start Date and Time'),
+    '#title' => t('Set Reservation Start Date and Time1'),
     '#type' => 'date_popup', // Provided by the date_popup module
     '#default_value' => $default_date_time,
     '#date_format' => 'Y-m-d h:i A', // Uses the PHP date() format - http://php.net/manual/en/function.date.php
@@ -660,7 +671,7 @@ drupal_set_message(t("User ID: " . variable_get('working_uid') ));
 //  );
 
  $form['res_length'] = array(
-    '#title' => t('Set Reservation Start Date and Time'),
+    '#title' => t('Set Reservation Start Date and Time2'),
     '#type' => 'select',
     '#options' => array(
       60 => t('1 hour'),
@@ -843,7 +854,7 @@ $working_uid = variable_get('working_uid');
     'uid' => '502673598',
   );
 
-krumo($form_state);
+//krumo($form_state);
 
   $delimiter = ':::';
   $string = $form_state['page_values'][5]['table'];
@@ -893,7 +904,7 @@ krumo($form_state);
 //    'uid' => '603513612',
   );
 
-krumo($str_create1);
+//krumo($str_create1);
 
 
 
@@ -905,12 +916,18 @@ krumo($str_create1);
 
   $form['description'] = array(
     '#type'  => 'item',
-    '#title' => t('test loop'),
+    '#title' => t('Success'),
   );
 
   $form['submit'] = array(
     '#type'  => 'submit',
-    '#value' => t('confirm'),
+    '#value' => t('Make another reservation'),
+    '#submit' => array('rc_res_full_form_page_seven_handler_submit'),
+  );
+
+  $form['view'] = array(
+    '#type'  => 'submit',
+    '#value' => t('View Reservation(s)'),
     '#submit' => array('rc_res_full_form_page_seven_handler_submit'),
   );
   return $form;
@@ -956,7 +973,7 @@ function rc_res_full_form_page_one_handler_submit($form, &$form_state) {
 	  // get user category here
 	    $rc_res_full_get_user_category = rc_res_full_get_user_category($working_uid);
 	    variable_set('rc_res_full_get_user_category', $rc_res_full_get_user_category);
-	  $form_state['page_num'] = 2;
+	  $form_state['page_num'] = 3;
 	}
       }
     }
@@ -968,8 +985,8 @@ function rc_res_full_form_page_one_handler_submit($form, &$form_state) {
       // get user category here
 	$rc_res_full_get_user_category = rc_res_full_get_user_category($working_uid);
 	variable_set('rc_res_full_get_user_category', $rc_res_full_get_user_category);
-krumo($rc_res_full_get_user_category);
-      $form_state['page_num'] = 2;
+//krumo($rc_res_full_get_user_category);
+      $form_state['page_num'] = 3;
     }
   }
   else {
@@ -979,7 +996,7 @@ krumo($rc_res_full_get_user_category);
     // get user category here
       $rc_res_full_get_user_category = rc_res_full_get_user_category($working_uid);
       variable_set('rc_res_full_get_user_category', $rc_res_full_get_user_category);
-    $form_state['page_num'] = 2;
+    $form_state['page_num'] = 3;
   }
   $form_state['rebuild'] = TRUE;
 }
@@ -1096,7 +1113,7 @@ function rc_res_full_form_page_six_handler_submit($form, &$form_state) {
 
   $form_state['page_values'][6] = $form_state['values'];
 
-krumo($form_state);
+//krumo($form_state);
 
   if (!empty($form_state['page_values'][7])) {
     $form_state['values'] = $form_state['page_values'][7];
@@ -1119,9 +1136,11 @@ function rc_res_full_form_page_seven_handler_submit($form, &$form_state) {
 
   $form_state['page_values'][7] = $form_state['values'];
 
-
-  // loop to page 3 for testing
+if (preg_match("/View/", $form_state['clicked_button']['#value'])) {
   $form_state['page_num'] = 3;
+} else {
+  $form_state['page_num'] = 1;
+}
   $form_state['rebuild'] = TRUE;
  }
 
@@ -1545,8 +1564,8 @@ function rc_res_full_get_open_resources_at_time() {
 
   $response_voy = drupal_http_request($url, $options);
 
-krumo($url);
-krumo($response_voy);
+//krumo($url);
+//krumo($response_voy);
 
   $patron_reservations = $response_voy->data;
 
@@ -1579,11 +1598,11 @@ function rc_res_full_get_resources_for_period($form, $form_state) {
   $rlength = $form_state['page_values'][4]['res_length'];
   $rlength =   $rlength/30;
 
-krumo($rdate);
-krumo($rtime12h);
-krumo($rtime12m);
-krumo($rtime12a);
-krumo($rlength);
+//krumo($rdate);
+//krumo($rtime12h);
+//krumo($rtime12m);
+//krumo($rtime12a);
+//krumo($rlength);
 
 $request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/'."$rdate"."+"."$rtime12h".'%3a'."$rtime12m".'+'."$rtime12a".'/until/48/length/'."$rlength";
 //$request_url = 'http://lit321v-b.library.ucla.edu/rcres/availablerooms/after/2012-09-18+08%3a00+AM/until/48/length/3';
@@ -1594,7 +1613,7 @@ $request_retry = 3;
 // Send the request.
 $response_voy = drupal_http_request($request_url, $request_headers, $request_method, $data, $request_retry);
 
-krumo($response_voy);
+//krumo($response_voy);
 
   $patron_reservations = $response_voy->data;
   $patron_reservations_array = drupal_json_decode($patron_reservations, TRUE);
@@ -1619,7 +1638,7 @@ $request_retry = 3;
 // Send the request.
 $response_voy = drupal_http_request($request_url, $request_headers, $request_method, $data, $request_retry);
 
-krumo($response_voy);
+//krumo($response_voy);
 
   $patron_reservations = $response_voy->data;
   $patron_reservations_array = drupal_json_decode($patron_reservations, TRUE);
@@ -1633,8 +1652,8 @@ krumo($response_voy);
  */
 function rc_res_full_set_user_reservations($rrid, $str_create1) {
 
-krumo($str_create1);
-krumo($rrid);
+//krumo($str_create1);
+//krumo($rrid);
 
   $params = array();
   $params = json_encode($str_create1);
@@ -1650,7 +1669,7 @@ krumo($rrid);
 
 //  $response = drupal_http_request('http://lit321v-b.library.ucla.edu/rcres/reservation/reserveroom/1', $headers = array('Content-Type' => 'application/json'), $method = 'POST', $data = $params, $retry = 3);
 
-krumo($response);
+//krumo($response);
 
 }
 
@@ -1690,7 +1709,7 @@ function rc_res_full_set_user_reservations_0($working_uid) {
     'headers' => array('Content-Type' => 'application/json')
   ));
 
-krumo($response);
+//krumo($response);
 
 }
 // good 20120919
@@ -1730,6 +1749,33 @@ function send_data_form_submit($form, &$form_state) {
     $result_1 = drupal_http_request(url($url_login, array(absolute => true)), $headers, $method, $user); //I get a http_code = 200. OK
     $result_2 = drupal_http_request(url($url_target,array(absolute => true)), $headers, $method, $attendee); // I get a http_code = 500. Internal Server Error
 }
+
+
+function rc_res_block_info() {
+  $blocks['recent444'] = array(
+    'info' => t('Recent conten444'),
+    'region' => 'content',
+
+
+
+    // DRUPAL_CACHE_PER_ROLE will be assumed.
+  );
+
+  return $blocks;
+}
+
+
+function rc_res_custom_menu()
+{
+
+    $menu = array();
+    $menu['menu_name'] = "rc-res-menutest";
+    $menu['title'] = "RC-Res Link";
+    $menu['description'] = "Links to make Reseearch Commons reservations333";
+    menu_save($menu);
+
+}
+
 
 
 // dhc
