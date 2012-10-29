@@ -23,7 +23,7 @@ function dbtng_example_install() {
   // Add a default entry.
   $fields = array(
     'name'    => 'John',
-    'surname' => 'Doe',
+    'surname' => 'Doe2',
     'age'     => 0,
   );
   db_insert('dbtng_example')
@@ -33,7 +33,7 @@ function dbtng_example_install() {
   // Add another entry.
   $fields = array(
     'name'    => 'John',
-    'surname' => 'Roe',
+    'surname' => 'Roe2',
     'age'     => 100,
     'uid'     => 1,
   );
