@@ -799,7 +799,6 @@ function rc_res_full_form_page_five($form, &$form_state) {
       '#submit' => array('rc_res_full_form_page_five_empty_handler_submit'),
     ),
 
-
   );
   }
 
