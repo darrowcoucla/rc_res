@@ -280,18 +280,6 @@ function rc_res_full_menu() {
     'access callback' => TRUE,
     'menu_name' => 'rc-res-menutest',
   );
-  $items['examples/rc_res_full/list'] = array(
-    'title' => 'Sign in',
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-    'weight' => -10,
-  );
-  $items['examples/rc_res_full/list_users'] = array(
-    'title' => 'List Users',
-    'page callback' => 'rc_res_full_list',
-    'access callback' => TRUE,
-    'type' => MENU_LOCAL_TASK,
-    'weight' => -9,
-  );
 
   return $items;
 }
@@ -512,11 +500,9 @@ function rc_res_full_form_page_three($form, &$form_state) {
 
   $header = array
   (
-    'schedID' => t('schedID'),
-    'uid' => t('UID'),
     'roomName' => t('Room Name'),
-    'startDate' => t('Start Date'),
-    'endDate' => t('End Date'),
+    'startDate' => t('Start'),
+    'endDate' => t('End'),
   );
 
   // Initialize an empty array
@@ -531,8 +517,6 @@ function rc_res_full_form_page_three($form, &$form_state) {
     $lcnt += 1;
     $options_form[$row['schedID']] = array // each element of the array is keyed with the PID
     (
-      'schedID' => $row['schedID'], // 'start_date' was the key used in the header
-      'uid' => variable_get('rc_res_full_get_user_category'), // 'start_date' was the key used in the header
       'roomName' => $row['roomName'], // 'start_date' was the key used in the header
       'startDate' => $row['startDate'], // 'start_time' was the key used in the header
       'endDate' => $row['endDate'], // 'start_date' was the key used in the header
@@ -560,7 +544,7 @@ function rc_res_full_form_page_three($form, &$form_state) {
       '#type' => 'tableselect',
       '#header' => $header,
       '#options' => $options_form,
-      '#empty' => t('No reservations found'),
+      '#empty' => t('No existing reservations'),
     ),
 
     $form['submit'] = array
@@ -652,13 +636,13 @@ function rc_res_full_form_page_four($form, &$form_state) {
   $default_date_time = preg_replace( '/\d\d:\d\d:\d\d/', '08:00:00', $default_date_time );
 
   $form['date'] = array(
-    '#title' => t('Set Reservation Start Date and Time1'),
     '#type' => 'date_popup', // Provided by the date_popup module
     '#default_value' => $default_date_time,
     '#date_format' => 'Y-m-d h:i A', // Uses the PHP date() format - http://php.net/manual/en/function.date.php
     '#date_year_range' => '0:+2', // Limits the year range to the next two upcoming years
     '#date_increment' => 30,
     '#required' => TRUE,
+    '#date_label_position' => 'above',
   );
 
 //  $form['reservation_type'] = array(
@@ -671,15 +655,15 @@ function rc_res_full_form_page_four($form, &$form_state) {
 //    '#title' => t('Select Reservation Length'),
 //  );
 
- $form['res_length'] = array(
-    '#title' => t('Set Reservation Start Date and Time2'),
-    '#type' => 'select',
-    '#options' => array(
-      60 => t('1 hour'),
-      90 => t('1 1/2 hours'),
-      120 => t('2 hours'),
-    ),
-  );
+// $form['res_length'] = array(
+//    '#title' => t('Duration'),
+//    '#type' => 'select',
+//    '#options' => array(
+//      60 => t('1 hour'),
+//      90 => t('1 1/2 hours'),
+//      120 => t('2 hours'),
+//    ),
+//  );
 
   $form['submit'] = array(
     '#type'  => 'submit',
@@ -746,6 +730,8 @@ function rc_res_full_form_page_five($form, &$form_state) {
   }
 
   $demos0 = array();
+
+  if (!empty($rows)) {
   $demos0 = array(
     $form['description'] = array
     (
@@ -770,6 +756,52 @@ function rc_res_full_form_page_five($form, &$form_state) {
       '#submit' => array('rc_res_full_form_page_five_handler_submit'),
     ),
   );
+  }
+  else {
+  $form_state['page_num'] = 4;
+  $form_state['rebuild'] = TRUE;
+
+  $demos0 = array(
+    $form['description'] = array
+    (
+      '#type'  => 'item',
+      '#title' => t('Available Resources:'),
+    ),
+
+    $form['table'] = array
+    (
+      '#id' => 'formformform2',
+      '#type' => 'tableselect',
+      '#header' => $header,
+      '#options' => $options_form,
+      '#multiple' => FALSE,
+      '#empty' => t('No available resources found'),
+    ),
+
+    $form['submit0'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Find spaces for earlier start times'),
+      '#submit' => array('rc_res_full_form_page_five_empty_handler_submit'),
+    ),
+
+    $form['submit1'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Find spaces for later start times'),
+      '#submit' => array('rc_res_full_form_page_five_empty_handler_submit'),
+    ),
+
+    $form['submit2'] = array
+    (
+      '#type' => 'submit',
+      '#value' => t('Change Date and Time'),
+      '#submit' => array('rc_res_full_form_page_five_empty_handler_submit'),
+    ),
+
+
+  );
+  }
 
   return $form;
 }
@@ -1099,6 +1131,25 @@ function rc_res_full_form_page_five_handler_submit($form, &$form_state) {
 
   // When form rebuilds in n+2 or so, use this to determine which page to build.
   $form_state['page_num'] = 6;
+  $form_state['rebuild'] = TRUE;
+ }
+
+/**
+ * Page 5 empty submit handler.
+ *
+ * Save the vals from page two for a later final submit.
+ */
+function rc_res_full_form_page_five_empty_handler_submit($form, &$form_state) {
+  // Values are saved for each page.
+  // to carry forward to subsequent pages in the form.
+  // The Forms API rebuilds the form.
+
+  if (!empty($form_state['page_values'][6])) {
+    $form_state['values'] = $form_state['page_values'][6];
+  }
+
+  // When form rebuilds in n+2 or so, use this to determine which page to build.
+  $form_state['page_num'] = 4;
   $form_state['rebuild'] = TRUE;
  }
 
@@ -1597,7 +1648,8 @@ function rc_res_full_get_resources_for_period($form, $form_state) {
   $rtime12m = date("i", strtotime($rtime));
   $rtime12a = date("a", strtotime($rtime));
 
-  $rlength = $form_state['page_values'][4]['res_length'];
+  $rlength = 1;
+//  $rlength = $form_state['page_values'][4]['res_length'];
   $rlength =   $rlength/30;
 
 //krumo($rdate);
